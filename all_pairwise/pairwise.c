@@ -266,7 +266,7 @@ int main(int argc, char **argv)
 				}
 			}
 			const double mean_time = sum_x/niterations;
-			printf(ANSI_COLOR_RED "# %-35s  %0.2lf +- %0.2lf  %0.2lf GFlops " ANSI_COLOR_RESET "\n",allfunction_names[i], mean_time, sqrt(sum_sqr_x/niterations - mean_time*mean_time), (double) totflop*1e3/mean_time/1e9);
+			printf(ANSI_COLOR_RED "# %-35s  %0.2lf +- %0.2lf" ANSI_COLOR_RESET "," ANSI_COLOR_BLUE " %0.2lf GFlops " ANSI_COLOR_RESET "\n",allfunction_names[i], mean_time, sqrt(sum_sqr_x/niterations - mean_time*mean_time), (double) totflop*1e3/mean_time/1e9);
 		}
 	}
 	

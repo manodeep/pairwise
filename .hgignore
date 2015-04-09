@@ -1,0 +1,9 @@
+syntax:glob
+*.o
+.*
+*~
+*.sh
+xx*
+yy*
+pairwise
+pairwise_3d

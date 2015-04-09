@@ -30,10 +30,19 @@
 
 #include "pairwise_3d_ispc.h"
 
+
+#ifdef COLORED_OUTPUT
 #define ANSI_COLOR_RED     "\x1b[31m"
 #define ANSI_COLOR_GREEN   "\x1b[32m"
 #define ANSI_COLOR_BLUE    "\x1b[34m"
 #define ANSI_COLOR_RESET   "\x1b[0m"
+#else
+#define ANSI_COLOR_RED     
+#define ANSI_COLOR_GREEN   
+#define ANSI_COLOR_BLUE    
+#define ANSI_COLOR_RESET   
+#endif
+
 
 #ifndef SQRT_DIST
 const long totflop = (long) NELEMENTS * (long) NELEMENTS * (8);
@@ -135,105 +144,6 @@ void naive(const double * restrict pos0, const double * restrict pos1, const int
 }
 
 
-/* /\* void naive_internal(const double * restrict xx, const double * restrict yy, const int NN, double * restrict dd) *\/ */
-/* /\* { *\/ */
-/* /\* 	const size_t numbytes = NDIM*NELEMENTS; *\/ */
-/* /\* 	double *pos0 __attribute__((aligned(ALIGNMENT))) = NULL; *\/ */
-/* /\* 	double *pos1 __attribute__((aligned(ALIGNMENT))) = NULL; *\/ */
-/* /\* 	double *d __attribute__((aligned(ALIGNMENT))) = NULL; *\/ */
-/* /\* 	int test0 = posix_memalign((void **) &pos0, ALIGNMENT, sizeof(*pos0)*numbytes); *\/ */
-/* /\* 	int test1 = posix_memalign((void **) &pos1, ALIGNMENT, sizeof(*pos1)*numbytes);  *\/ */
-	
-/* /\* 	const long totnpairs = (long) NELEMENTS * (long) NELEMENTS; *\/ */
-/* /\* 	int test2 = posix_memalign((void **) &d, ALIGNMENT, sizeof(*d)*totnpairs); *\/ */
-/* /\* 	assert(test0 == 0  && test1 == 0 && test2 == 0 && "memory allocation failed"); *\/ */
-/* /\* 	srand(seed); *\/ */
-/* /\* 	const int N = NELEMENTS; *\/ */
-		
-/* /\* 	fill_array(pos0, N); *\/ */
-/* /\* 	fill_array(pos1, N); *\/ */
-
-/* /\* 	//warm-up *\/ */
-/* /\* 	const double *x0 = (const double *) pos0; *\/ */
-/* /\* 	const double *y0 = (const double *) &pos0[N]; *\/ */
-/* /\* 	const double *z0 = (const double *) &pos0[2*N]; *\/ */
-	
-/* /\* 	const double *x1 = (const double *) pos1; *\/ */
-/* /\* 	const double *y1 = (const double *) &pos1[N]; *\/ */
-/* /\* 	const double *z1 = (const double *) &pos1[2*N]; *\/ */
-	
-/* /\* 	double *dist = (double *) d; *\/ */
-/* /\* 	for(int i=0;i<N;i++) { *\/ */
-/* /\* 		const double xpos = x0[i]; *\/ */
-/* /\* 		const double ypos = y0[i]; *\/ */
-/* /\* 		const double zpos = z0[i]; *\/ */
-/* /\* #ifdef __INTEL_COMPILER		 *\/ */
-/* /\* #pragma simd assert reduction(+:dist) *\/ */
-/* /\* #endif		 *\/ */
-/* /\* 		for(int j=0;j<N;j++) { *\/ */
-/* /\* 			const double dx = xpos - x1[j]; *\/ */
-/* /\* 			const double dy = ypos - y1[j]; *\/ */
-/* /\* 			const double dz = zpos - z1[j]; *\/ */
-/* /\* #ifndef SQRT_DIST *\/ */
-/* /\* 			*dist = dx*dx + dy*dy + dz*dz; *\/ */
-/* /\* #else *\/ */
-/* /\* 			*dist = sqrt(dx*dx + dy*dy + dz*dz); *\/ */
-/* /\* #endif *\/ */
-/* /\* 			dist++; *\/ */
-/* /\* 		} *\/ */
-/* /\* 	} *\/ */
-
-
-
-/* /\* 	double sum_x=0.0, sum_sqr_x=0.0; *\/ */
-/* /\* 	for(int iterations=0;iterations < niterations;iterations++) { *\/ */
-/* /\* 		struct timeval t0,t1; *\/ */
-/* /\* 		gettimeofday(&t0,NULL); *\/ */
-/* /\* 		const double *x0 = (const double *) pos0; *\/ */
-/* /\* 		const double *y0 = (const double *) &pos0[N]; *\/ */
-/* /\* 		const double *z0 = (const double *) &pos0[2*N]; *\/ */
-		
-/* /\* 		const double *x1 = (const double *) pos1; *\/ */
-/* /\* 		const double *y1 = (const double *) &pos1[N]; *\/ */
-/* /\* 		const double *z1 = (const double *) &pos1[2*N]; *\/ */
-		
-/* /\* 		double *dist = (double *) d; *\/ */
-/* /\* 		for(int i=0;i<N;i++) { *\/ */
-/* /\* 			const double xpos = x0[i]; *\/ */
-/* /\* 			const double ypos = y0[i]; *\/ */
-/* /\* 			const double zpos = z0[i]; *\/ */
-/* /\* #ifdef __INTEL_COMPILER			 *\/ */
-/* /\* #pragma simd assert reduction(+:dist) *\/ */
-/* /\* #endif			 *\/ */
-/* /\* 			for(int j=0;j<N;j++) { *\/ */
-/* /\* 				const double dx = xpos - x1[j]; *\/ */
-/* /\* 				const double dy = ypos - y1[j]; *\/ */
-/* /\* 				const double dz = zpos - z1[j]; *\/ */
-/* /\* #ifndef SQRT_DIST *\/ */
-/* /\* 				*dist = dx*dx + dy*dy + dz*dz; *\/ */
-/* /\* #else *\/ */
-/* /\* 				*dist = sqrt(dx*dx + dy*dy + dz*dz); *\/ */
-/* /\* #endif *\/ */
-/* /\* 				dist++; *\/ */
-/* /\* 			} *\/ */
-/* /\* 		} *\/ */
-/* /\* 		gettimeofday(&t1,NULL); *\/ */
-/* /\* 		const double this_time_in_ms = 1e3*(t1.tv_sec-t0.tv_sec) +  1e-3*(t1.tv_usec - t0.tv_usec); *\/ */
-/* /\* 		sum_sqr_x += this_time_in_ms*this_time_in_ms; *\/ */
-/* /\* 		sum_x     += this_time_in_ms; *\/ */
-/* /\* 		printf("     %-35s  %0.2lf \n",__FUNCTION__, this_time_in_ms); *\/ */
-/* /\* 	} *\/ */
-/* /\* 	const double mean_time = sum_x/niterations; *\/ */
-/* /\* 	printf(ANSI_COLOR_RED "# %-35s  %0.2lf +- %0.2lf" ANSI_COLOR_RESET "," ANSI_COLOR_BLUE " %0.2lf GFlops " ANSI_COLOR_RESET "\n",__FUNCTION__, mean_time, sqrt(sum_sqr_x/niterations - mean_time*mean_time), (double) totflop*1e3/mean_time/1e9); *\/ */
-
-/* /\* 	long numbad = check_result(d, pos0, pos1, N); *\/ */
-/* /\* 	if(numbad > 0) { *\/ */
-/* /\* 		fprintf(stderr,"In function %s> numbad = %ld \n",__FUNCTION__,numbad); *\/ */
-/* /\* 	} *\/ */
-/* /\* 	free(d);free(pos0);free(pos1); *\/ */
-
-/* /\* }	 *\/ */
-	
 
 void chunked(const double * restrict pos0, const double * restrict pos1, const int N, double * restrict d)
 {
