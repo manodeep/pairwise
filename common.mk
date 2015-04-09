@@ -1,5 +1,5 @@
 ## Options for all-pairwise separations 
-#OPT += -DSQRT_DIST
+OPT += -DSQRT_DIST
 #OPT += -DUSE_MKL
 
 ### Options that might be enabled in the future
