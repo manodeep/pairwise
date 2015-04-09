@@ -1,0 +1,9 @@
+##################################################
+##  Function                            Time (ms) 
+##################################################
+# naive                                0.57 +- 0.00, 13.95 GFlops 
+# chunked                              0.59 +- 0.00, 13.60 GFlops 
+# compiler_vectorized_chunked          1.56 +- 0.01, 5.14 GFlops 
+# intrinsics_chunked                   1.19 +- 0.02, 6.72 GFlops 
+# intrinsics_chunked_unroll4           1.18 +- 0.02, 6.76 GFlops 
+# pairwise_ispc                        0.63 +- 0.00, 12.76 GFlops 
