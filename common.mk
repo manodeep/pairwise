@@ -20,7 +20,7 @@ CFLAGS=
 CLINK=
 
 ### You should NOT edit below this line
-INCLUDE= -I include 
+INCLUDE= -I include -I utils
 
 ### The POSIX_SOURCE flag is required to get the definition of strtok_r
 CFLAGS += -Wsign-compare -Wall -Wextra -Wshadow -Wunused -std=c99 -g -m64 -D_POSIX_SOURCE -D_DARWIN_C_SOURCE -O3 -Ofast

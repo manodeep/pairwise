@@ -17,19 +17,10 @@
 #define MAXLEN    100
 #define NDIM      3
 
-#if  __INTEL_COMPILER
-#include "mkl.h"
-#else
-#include <gsl/gsl_cblas.h>
-#endif
-
 #define DOUBLE_PREC
-
 #include "avx_calls.h"
 
-
 #include "pairwise_3d_ispc.h"
-
 
 #ifdef COLORED_OUTPUT
 #define ANSI_COLOR_RED     "\x1b[31m"
@@ -44,16 +35,10 @@
 #endif
 
 
-#ifndef SQRT_DIST
-const long totflop = (long) NELEMENTS * (long) NELEMENTS * (8);
-#else
-const long totflop = (long) NELEMENTS * (long) NELEMENTS * (8 + 10); //some hand-wavy thing saying that sqrt is 10 flop
-#endif		
 
 #define ALIGNMENT   64
 
-const unsigned int seed = 42;
-const int niterations = 1000;
+
 
 void fill_array(double * restrict x, const int N)
 {
@@ -406,6 +391,11 @@ void intrinsics_chunked_unroll4(const double * restrict pos0, const double * res
 
 int main(int argc, char **argv)
 {
+
+#if (NDIM != 3)
+	#error NDIM must be set to 3
+#endif
+	
 	const size_t numbytes = NDIM*NELEMENTS;
 	double *x    __attribute__((aligned(ALIGNMENT))) = NULL;
 	double *y    __attribute__((aligned(ALIGNMENT))) = NULL;
@@ -421,6 +411,14 @@ int main(int argc, char **argv)
 	const int ntests = sizeof(allfunction_names)/(sizeof(char)*MAXLEN);
 	void (*allfunctions[]) (const double * restrict x, const double * restrict y, const int, double * restrict)      = {naive,chunked,compiler_vectorized_chunked,intrinsics_chunked,intrinsics_chunked_unroll4,pairwise_ispc};
 
+#ifndef SQRT_DIST
+	const long totflop = (long) NELEMENTS * (long) NELEMENTS * (8);
+#else
+	const long totflop = (long) NELEMENTS * (long) NELEMENTS * (8 + 10); //some hand-wavy thing saying that sqrt is 10 flop
+#endif		
+
+	const unsigned int seed = 42;
+	const int niterations = 1000;
 	srand(seed);
 
 	int test_to_run = -1;
