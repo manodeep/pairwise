@@ -1,17 +1,17 @@
 ## Options for all-pairwise separations 
-OPT += -DSQRT_DIST
+#OPT += -DSQRT_DIST
 #OPT += -DUSE_MKL
 
 ## Print the output with colors.
 ## Disable if you are outputting to text file or if
 ## the terminal does not support colors
-#OPT += -DCOLORED_OUTPUT
+OPT += -DCOLORED_OUTPUT
 
 ### Options that might be enabled in the future
 #OPT += -DUSE_OMP
 
 ### Set the compiler -- options are icc/gcc/clang. 
-CC=clang 
+CC=gcc
 
 #### Add any compiler specific flags you want
 CFLAGS=
