@@ -1,11 +1,11 @@
 ## Options for all-pairwise separations 
-OPT += -DSQRT_DIST
+#OPT += -DSQRT_DIST
 #OPT += -DUSE_MKL
 
 ## Print the output with colors.
 ## Disable if you are outputting to text file or if
 ## the terminal does not support colors
-#OPT += -DCOLORED_OUTPUT
+OPT += -DCOLORED_OUTPUT
 
 ### Options that might be enabled in the future
 #OPT += -DUSE_OMP
@@ -20,7 +20,7 @@ CFLAGS=
 CLINK=
 
 ### You should NOT edit below this line
-INCLUDE= -I include -I utils
+INCLUDE= -I include -I utils -I.
 
 ### The POSIX_SOURCE flag is required to get the definition of strtok_r
 CFLAGS += -Wsign-compare -Wall -Wextra -Wshadow -Wunused -std=c99 -g -m64 -D_POSIX_SOURCE -D_DARWIN_C_SOURCE -O3 -Ofast
@@ -40,7 +40,7 @@ else
 
   ### compiler specific flags for clang
   ifeq (clang,$(findstring clang,$(CC)))
-		CFLAGS += #-funroll-loops
+		CFLAGS += -funroll-loops
   endif
 
   #### common options for gcc and clang

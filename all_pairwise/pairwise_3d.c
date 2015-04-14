@@ -12,47 +12,9 @@
 #include <assert.h>
 #include <math.h>
 
-
-#define NELEMENTS 1000
-#define MAXLEN    100
-#define NDIM      3
-
-#define DOUBLE_PREC
-#include "avx_calls.h"
-
+#include "../defs.h"
+#include "utils.h"
 #include "pairwise_3d_ispc.h"
-
-#ifdef COLORED_OUTPUT
-#define ANSI_COLOR_RED     "\x1b[31m"
-#define ANSI_COLOR_GREEN   "\x1b[32m"
-#define ANSI_COLOR_BLUE    "\x1b[34m"
-#define ANSI_COLOR_RESET   "\x1b[0m"
-#else
-#define ANSI_COLOR_RED     
-#define ANSI_COLOR_GREEN   
-#define ANSI_COLOR_BLUE    
-#define ANSI_COLOR_RESET   
-#endif
-
-
-
-#define ALIGNMENT   64
-
-
-
-void fill_array(double * restrict x, const int N)
-{
-	const double inv_rand_max = 1.0 / RAND_MAX;
-	double *pos = (double *) x;
-	for(int j=0;j<NDIM;j++) {
-		for(int i=0;i<N;i++) {
-			*pos = rand() * inv_rand_max;
-			pos++;
-		}
-	}
-}
-
-
 
 long check_result(double *dist, const double *pos0, const double *pos1, const int N)
 {
@@ -85,7 +47,7 @@ long check_result(double *dist, const double *pos0, const double *pos1, const in
 			const double d = sqr_ds;
 #endif			
 			
-			if(fabs(d - this_dist) > 1e-12) {
+			if(fabs(d - this_dist) > 1e-8) {
 				if(numbadprinted < 20) {
 					fprintf(stderr,"i = %d j = %d d = %0.8lf this_dist = %0.8lf \n",i,j,d,this_dist);
 					numbadprinted++;
@@ -407,9 +369,11 @@ int main(int argc, char **argv)
 	int test2 = posix_memalign((void **) &dist, ALIGNMENT, sizeof(*dist)*totnpairs);
 	assert(test0 == 0  && test1 == 0 && test2 == 0 && "memory allocation failed");
 
-  const char allfunction_names[][MAXLEN] = {"naive","chunked","compiler_vectorized_chunked","intrinsics_chunked","intrinsics_chunked_unroll4","pairwise_ispc"};
+  const char allfunction_names[][MAXLEN] = {"naive","chunked","compiler_vectorized_chunked","intrinsics_chunked","intrinsics_chunked_unroll4","pairwise_ispc",
+																						"naive","chunked","compiler_vectorized_chunked","intrinsics_chunked","intrinsics_chunked_unroll4","pairwise_ispc"};
 	const int ntests = sizeof(allfunction_names)/(sizeof(char)*MAXLEN);
-	void (*allfunctions[]) (const double * restrict x, const double * restrict y, const int, double * restrict)      = {naive,chunked,compiler_vectorized_chunked,intrinsics_chunked,intrinsics_chunked_unroll4,pairwise_ispc};
+	void (*allfunctions[]) (const double * restrict x, const double * restrict y, const int, double * restrict)      = {naive,chunked,compiler_vectorized_chunked,intrinsics_chunked,intrinsics_chunked_unroll4,pairwise_ispc,
+																																																											naive,chunked,compiler_vectorized_chunked,intrinsics_chunked,intrinsics_chunked_unroll4,pairwise_ispc};
 
 #ifndef SQRT_DIST
 	const long totflop = (long) NELEMENTS * (long) NELEMENTS * (8);
@@ -418,7 +382,7 @@ int main(int argc, char **argv)
 #endif		
 
 	const unsigned int seed = 42;
-	const int niterations = 1000;
+	const int max_niterations = 1000;
 	srand(seed);
 
 	int test_to_run = -1;
@@ -426,9 +390,16 @@ int main(int argc, char **argv)
 		test_to_run = atoi(argv[1]);
 		if(test_to_run >= ntests) test_to_run = -1;
 	}
-	
-	fill_array(x, NELEMENTS);
-	fill_array(y, NELEMENTS);
+
+	if(clustered_data == 0) {
+		fill_array(x, NELEMENTS);
+		fill_array(y, NELEMENTS);
+	} else {
+		assert(NELEMENTS <= max_galaxy_in_source_file && "Clustered data does not contain enough galaxies..please reduce NELEMENTS in defs.h");
+		assert(NDIM == 3 && "Clustered galaxy data contains *exactly* 3 spatial dimensions");
+		read_ascii(x, NELEMENTS, source_galaxy_file);
+		read_ascii(y, NELEMENTS, source_galaxy_file);
+	}
 
 	printf("##################################################\n");
 	printf("##  Function                            Time (ms) \n");
@@ -448,23 +419,45 @@ int main(int argc, char **argv)
 				goto cleanup;
 			}
 			
-			for(int iter=0;iter<niterations;iter++) {
+			int actual_niterations=0;
+			double best_time_in_ms=1e16, best_time_in_megacycles=1e16;
+			uint64_t start_cycles, end_cycles;
+			for(int iter=0;iter<max_niterations;iter++) {
+				actual_niterations++;
 				gettimeofday(&t0,NULL);
+				start_cycles = rdtsc();
 				(allfunctions[i]) (x, y, NELEMENTS, dist);
+				end_cycles = rdtsc();
 				gettimeofday(&t1,NULL);
+			
 				const double this_time_in_ms = 1e3*(t1.tv_sec-t0.tv_sec) +  1e-3*(t1.tv_usec - t0.tv_usec);
+				if(this_time_in_ms < best_time_in_ms) best_time_in_ms = this_time_in_ms;
+				const double this_time_in_megacycles = (end_cycles - start_cycles)/(1024.*1024.);
+				if(this_time_in_megacycles < best_time_in_megacycles) best_time_in_megacycles = this_time_in_megacycles;
+
 				sum_sqr_x += this_time_in_ms*this_time_in_ms;
 				sum_x     += this_time_in_ms;
-				if(niterations < 10) {
+
+				if(max_niterations <= 10) {
 					printf("     %-35s  %0.2lf \n",allfunction_names[i], this_time_in_ms);
 				}
+
+				const double mean_time  = sum_x/(iter+1.0);
+				const double sigma_time = sqrt(sum_sqr_x/(iter+1.0) - mean_time*mean_time);
+				//If the std.dev is small compared to typical runtime and
+				//the code has run for more than XXX milli-seconds, then break
+				if(sigma_time/mean_time < 0.05 && sum_x >= 300.0 && iter >= 10) {
+					break;
+				}
 			}
-			const double mean_time = sum_x/niterations;
-			printf(ANSI_COLOR_RED "# %-35s  %0.2lf +- %0.2lf" ANSI_COLOR_RESET "," ANSI_COLOR_BLUE " %0.2lf GFlops " ANSI_COLOR_RESET "\n",allfunction_names[i], mean_time, sqrt(sum_sqr_x/niterations - mean_time*mean_time), (double) totflop*1e3/mean_time/1e9);
+			
+			const double mean_time = sum_x/actual_niterations;
+			const double sigma_time = sqrt(sum_sqr_x/actual_niterations - mean_time*mean_time);
+			const double gflops = (double) totflop/(1e-3*mean_time)/1e9;
+			printf(ANSI_COLOR_RED "# %-35s  %6.2lf +- %5.2lf " ANSI_COLOR_GREEN " (best -- %6.2lf ms, %6.2lf Mcycles) " ANSI_COLOR_RESET "," ANSI_COLOR_BLUE " >= %5.2lf GFlops [%04d iterations]" ANSI_COLOR_RESET "\n",
+						 allfunction_names[i], mean_time, sigma_time, best_time_in_ms, best_time_in_megacycles, gflops, actual_niterations);
 		}
 	}
-
-	/* naive_internal(x, y, NELEMENTS, dist); */
 		
 cleanup:
 	{

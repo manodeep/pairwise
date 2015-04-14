@@ -26,14 +26,23 @@ extern "C" {
 #endif
 
 //Just to output some colors
-
+#ifdef COLORED_OUTPUT
 #define ANSI_COLOR_RED     "\x1b[31m"
 #define ANSI_COLOR_GREEN   "\x1b[32m"
-#define ANSI_COLOR_YELLOW  "\x1b[33m"
-#define ANSI_COLOR_CYAN    "\x1b[36m"
 #define ANSI_COLOR_BLUE    "\x1b[34m"
-#define ANSI_COLOR_MAGENTA "\x1b[35m"
 #define ANSI_COLOR_RESET   "\x1b[0m"
+#else
+#define ANSI_COLOR_RED     
+#define ANSI_COLOR_GREEN   
+#define ANSI_COLOR_BLUE    
+#define ANSI_COLOR_RESET   
+#endif
+
+
+//routines for filling up arrays
+void fill_array(double * restrict x, const int N);
+void read_ascii(double * restrict pos, const int N, const char *source_file);	
+	
 
 //routines for file i/o
 extern FILE * my_fopen(const char *fname,const char *mode);
@@ -47,7 +56,8 @@ extern char *int2bin(int a, char *buffer, int buf_size) ;
 extern int my_snprintf(char *buffer,int len,const char *format, ...) __attribute__((format(printf,3,4)));
 extern void print_time(struct timeval t0,struct timeval t1,const char *s);
 extern int64_t getnumlines(const char *fname,const char comment);
-
+extern 	uint64_t rdtsc(void);
+	
 //memory routines
 extern void* my_realloc(void *x,size_t size,int64_t N,const char *varname);
 extern void* my_realloc_in_function(void **x,size_t size,int64_t N,const char *varname);

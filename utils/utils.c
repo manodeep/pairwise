@@ -23,9 +23,64 @@ Ver 1.2: Manodeep Sinha, Jan 8, 2012 - replaced
 */
 
 #include "utils.h"
-/* #define __USE_XOPEN2K */
-/* #define _XOPEN_SOURCE_EXTENDED */
-/* #define _GNU_SOURCE  */
+#include "defs.h"
+
+void fill_array(double * restrict x, const int N)
+{
+  const double inv_rand_max = 1.0 / RAND_MAX;
+  double *pos = (double *) x;
+  for(int j=0;j<NDIM;j++) {
+		for(int i=0;i<N;i++) {
+			*pos = rand() * inv_rand_max;
+			pos++;
+		}
+  }
+}
+
+
+void read_ascii(double * restrict pos, const int N, const char *source_file)
+{
+	const int MAXBUFSIZE=1000;
+	char execstring[MAXLEN];
+	char buffer[MAXBUFSIZE];
+	char tmpfile[MAXLEN];
+	my_snprintf(tmpfile,MAXLEN,"./tmp_random_subsampled_%d.txt", N);
+	my_snprintf(execstring,MAXLEN,"shuf -n %d %s > %s",N, source_file, tmpfile);
+	run_system_call(execstring);
+
+	FILE *fp = my_fopen(tmpfile,"r");
+	double *x = pos;
+	double *y = &pos[N];
+	double *z = &pos[2*N];
+	int numread = 0;
+	while(fgets(buffer,MAXBUFSIZE,fp) != NULL && numread < N) {
+		int nread = sscanf(buffer,"%lf %lf %lf",x, y, z);
+		if(nread == 3) {
+			x++;y++;z++;
+			numread++;
+		}
+	}
+	fclose(fp);
+	assert(numread == N && "Read-in correct number of clustered xyz positions");
+	unlink(tmpfile);
+}
+
+
+//Taken straight from timing.h provided by INTEL ispc distribution
+//However, I only took the linux bit. 
+uint64_t rdtsc(void)
+{
+	uint32_t low, high;
+#ifdef __x86_64
+	__asm__ __volatile__ ("xorl %%eax,%%eax \n    cpuid"
+												::: "%rax", "%rbx", "%rcx", "%rdx" );
+#else
+	__asm__ __volatile__ ("xorl %%eax,%%eax \n    cpuid"
+												::: "%eax", "%ebx", "%ecx", "%edx" );
+#endif
+	__asm__ __volatile__ ("rdtsc" : "=a" (low), "=d" (high));
+	return (uint64_t)high << 32 | low;
+}
 
 
 void  setup_bins(const char *fname,double *rmin,double *rmax,int *nbin,double **rupp)

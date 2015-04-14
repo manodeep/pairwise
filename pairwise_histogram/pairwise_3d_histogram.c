@@ -15,66 +15,7 @@
 #include <unistd.h>
 #include "utils.h"
 
-#define NELEMENTS 1000
-#define MAXLEN    200
-
-
-//Even though it seems like the code
-//scales to arbitrary dimensions, the individual
-//functions *only* calculate in 3-D.
-#define NDIM      3
-
-#define DOUBLE_PREC
-#include "avx_calls.h"
-
-#define ANSI_COLOR_RED     "\x1b[31m"
-#define ANSI_COLOR_GREEN   "\x1b[32m"
-#define ANSI_COLOR_BLUE    "\x1b[34m"
-#define ANSI_COLOR_RESET   "\x1b[0m"
-
-#define ALIGNMENT   64
-
-
-void fill_array(double * restrict x, const int N)
-{
-  const double inv_rand_max = 1.0 / RAND_MAX;
-  double *pos = (double *) x;
-  for(int j=0;j<NDIM;j++) {
-		for(int i=0;i<N;i++) {
-			*pos = rand() * inv_rand_max;
-			pos++;
-		}
-  }
-}
-
-
-void read_ascii(double * restrict pos, const int N, const char *source_file)
-{
-	const int MAXBUFSIZE=1000;
-	char execstring[MAXLEN];
-	char buffer[MAXBUFSIZE];
-	char tmpfile[MAXLEN];
-	my_snprintf(tmpfile,MAXLEN,"./tmp_random_subsampled_%d.txt", N);
-	my_snprintf(execstring,MAXLEN,"shuf -n %d %s > %s",N, source_file, tmpfile);
-	run_system_call(execstring);
-
-	FILE *fp = my_fopen(tmpfile,"r");
-	double *x = pos;
-	double *y = &pos[N];
-	double *z = &pos[2*N];
-	int numread = 0;
-	while(fgets(buffer,MAXBUFSIZE,fp) != NULL && numread < N) {
-		int nread = sscanf(buffer,"%lf %lf %lf",x, y, z);
-		if(nread == 3) {
-			x++;y++;z++;
-			numread++;
-		}
-	}
-	fclose(fp);
-	assert(numread == N && "Read-in correct number of clustered xyz positions");
-	unlink(tmpfile);
-}
-
+#include "../defs.h"
 
 int64_t * calculate_reference_histogram(const double * restrict pos0, const double * restrict pos1, const int N, const char *binfile)
 {
@@ -166,18 +107,11 @@ int check_result(const int64_t *npairs, const int64_t *npairs_reference, const i
 }
 
 
-int64_t * naive(const double * restrict pos0, const double * restrict pos1, const int N, const char *binfile)
+void naive(const double * restrict pos0, const double * restrict pos1, const int N, const int nrpbin, const double *rupp, int64_t *results_npairs)
 {
   const double *x0  __attribute__((aligned(ALIGNMENT))) = (const double *) pos0;
   const double *y0  __attribute__((aligned(ALIGNMENT))) = (const double *) &pos0[N];
   const double *z0  __attribute__((aligned(ALIGNMENT))) = (const double *) &pos0[2*N];
-
-  double *rupp;
-  int nrpbin ;
-  double rpmin,rpmax;
-  setup_bins(binfile,&rpmin,&rpmax,&nrpbin,&rupp);
-  assert(rpmin > 0.0 && rpmax > 0.0 && rpmin < rpmax && "[rpmin, rpmax] are valid inputs");
-  assert(nrpbin > 0 && "Number of rp bins must be > 0");
 
   int64_t *npairs = NULL;
   size_t numbytes = sizeof(*npairs)*nrpbin;
@@ -217,22 +151,18 @@ int64_t * naive(const double * restrict pos0, const double * restrict pos1, cons
 		}
   }
 
-  free(rupp);
-  return npairs;
+	for(int i=0;i<nrpbin;i++) {
+		results_npairs[i] = npairs[i];
+	}
+	free(npairs);
 }
 
-int64_t * chunked(const double * restrict pos0, const double * restrict pos1, const int N, const char *binfile)
+void chunked(const double * restrict pos0, const double * restrict pos1, const int N, const int nrpbin, const double *rupp, int64_t *results_npairs)
 {
   const int block_size = 64;
   const double *x0 = (const double *) pos0;
   const double *y0 = (const double *) &pos0[N];
   const double *z0 = (const double *) &pos0[2*N];
-  double *rupp;
-  int nrpbin ;
-  double rpmin,rpmax;
-  setup_bins(binfile,&rpmin,&rpmax,&nrpbin,&rupp);
-  assert(rpmin > 0.0 && rpmax > 0.0 && rpmin < rpmax && "[rpmin, rpmax] are valid inputs");
-  assert(nrpbin > 0 && "Number of rp bins must be > 0");
 
   int64_t *npairs = NULL;
   size_t numbytes = sizeof(*npairs)*nrpbin;
@@ -285,24 +215,20 @@ int64_t * chunked(const double * restrict pos0, const double * restrict pos1, co
 		}
   }
 
-  free(rupp);
-  return npairs;
+
+	for(int i=0;i<nrpbin;i++) {
+		results_npairs[i] = npairs[i];
+	}
+	free(npairs);
 }
 
 
-int64_t * compiler_vectorized_chunked(const double * restrict pos0, const double * restrict pos1, const int N, const char *binfile)
+void compiler_vectorized_chunked(const double * restrict pos0, const double * restrict pos1, const int N, const int nrpbin, const double *rupp, int64_t *results_npairs)
 {
   const int block_size = 4;
   const double *x0 = (const double *) pos0;
   const double *y0 = (const double *) &pos0[N];
   const double *z0 = (const double *) &pos0[2*N];
-
-  double *rupp;
-  int nrpbin ;
-  double rpmin,rpmax;
-  setup_bins(binfile,&rpmin,&rpmax,&nrpbin,&rupp);
-  assert(rpmin > 0.0 && rpmax > 0.0 && rpmin < rpmax && "[rpmin, rpmax] are valid inputs");
-  assert(nrpbin > 0 && "Number of rp bins must be > 0");
 
   int64_t *npairs = NULL;
   size_t numbytes = sizeof(*npairs)*nrpbin;
@@ -371,23 +297,20 @@ int64_t * compiler_vectorized_chunked(const double * restrict pos0, const double
 		}
   }
 
-  free(rupp);
-  return npairs;
+	for(int i=0;i<nrpbin;i++) {
+		results_npairs[i] = npairs[i];
+	}
+	free(npairs);
+
 }
 
 
-int64_t * intrinsics_chunked(const double * restrict pos0, const double * restrict pos1, const int N, const char *binfile)
+void intrinsics_chunked(const double * restrict pos0, const double * restrict pos1, const int N, const int nrpbin, const double *rupp, int64_t *results_npairs)
 {
   double *x0 = (double *) pos0;
   double *y0 = (double *) &pos0[N];
   double *z0 = (double *) &pos0[2*N];
 
-  double *rupp;
-  int nrpbin ;
-  double rpmin,rpmax;
-  setup_bins(binfile,&rpmin,&rpmax,&nrpbin,&rupp);
-  assert(rpmin > 0.0 && rpmax > 0.0 && rpmin < rpmax && "[rpmin, rpmax] are valid inputs");
-  assert(nrpbin > 0 && "Number of rp bins must be > 0");
   int64_t *npairs = NULL;
   size_t numbytes = sizeof(*npairs)*nrpbin;
   const int test0 = posix_memalign((void **) &npairs, ALIGNMENT, numbytes);
@@ -477,6 +400,7 @@ int64_t * intrinsics_chunked(const double * restrict pos0, const double * restri
 				}
 			}
 		}			
+
 		for(int jj=0;j<N;jj++,j++) {
 			const double dx = xpos - x1[jj];
 			const double dy = ypos - y1[jj];
@@ -492,26 +416,22 @@ int64_t * intrinsics_chunked(const double * restrict pos0, const double * restri
 		}
   }
 
-  free(rupp);
-  return npairs;
+	for(int i=0;i<nrpbin;i++) {
+		results_npairs[i] = npairs[i];
+	}
+	free(npairs);
 }
 
 
-int64_t * intrinsics_chunked_unroll4(const double * restrict pos0, const double * restrict pos1, const int N, const char *binfile)
+void intrinsics_chunked_unroll(const double * restrict pos0, const double * restrict pos1, const int N, const int nrpbin, const double *rupp, int64_t *results_npairs)
 {
 	const int block_size = 4;
-	const int unroll_factor=4;
+	const int unroll_factor=2;
 
   double *x0 = (double *) pos0;
   double *y0 = (double *) &pos0[N];
   double *z0 = (double *) &pos0[2*N];
 
-  double *rupp;
-  int nrpbin ;
-  double rpmin,rpmax;
-  setup_bins(binfile,&rpmin,&rpmax,&nrpbin,&rupp);
-  assert(rpmin > 0.0 && rpmax > 0.0 && rpmin < rpmax && "[rpmin, rpmax] are valid inputs");
-  assert(nrpbin > 0 && "Number of rp bins must be > 0");
   int64_t *npairs = NULL;
   size_t numbytes = sizeof(*npairs)*nrpbin;
   const int test0 = posix_memalign((void **) &npairs, ALIGNMENT, numbytes);
@@ -539,18 +459,20 @@ int64_t * intrinsics_chunked_unroll4(const double * restrict pos0, const double 
 #define UPDATEHIST(n) const AVX_FLOATS m_rpmax_mask##n = AVX_COMPARE_FLOATS(r2##n, m_sqr_rpmax, _CMP_LT_OS); \
 	const AVX_FLOATS m_rpmin_mask##n = AVX_COMPARE_FLOATS(r2##n, m_sqr_rpmin, _CMP_GE_OS); \
 		AVX_FLOATS m_mask_left##n = AVX_BITWISE_AND(m_rpmax_mask##n,m_rpmin_mask##n); \
-			r2##n = AVX_BLEND_FLOATS_WITH_MASK(m_sqr_rpmax, r2##n, m_mask_left##n); \
-				for(int kbin##n=nrpbin-1;kbin##n>=1;kbin##n--) {								\
-					const AVX_FLOATS m1 = AVX_COMPARE_FLOATS(r2##n,m_rupp_sqr[kbin##n-1],_CMP_GE_OS); \
-					const AVX_FLOATS m_bin_mask = AVX_BITWISE_AND(m1,m_mask_left##n);	\
-					m_mask_left##n = AVX_COMPARE_FLOATS(r2##n,m_rupp_sqr[kbin##n-1],_CMP_LT_OS); \
-					const int test2  = AVX_TEST_COMPARISON(m_bin_mask);						\
-					npairs[kbin##n] += AVX_BIT_COUNT_INT(test2);									\
-					const int test3 = AVX_TEST_COMPARISON(m_mask_left##n);						\
-					if(test3 == 0) {																							\
-						break;																											\
-					}																															\
-}
+			if(AVX_TEST_COMPARISON(m_mask_left##n) != 0) { \
+				r2##n = AVX_BLEND_FLOATS_WITH_MASK(m_sqr_rpmax, r2##n, m_mask_left##n); \
+					for(int kbin##n=nrpbin-1;kbin##n>=1;kbin##n--) {							\
+						const AVX_FLOATS m1 = AVX_COMPARE_FLOATS(r2##n,m_rupp_sqr[kbin##n-1],_CMP_GE_OS); \
+						const AVX_FLOATS m_bin_mask = AVX_BITWISE_AND(m1,m_mask_left##n);	\
+						m_mask_left##n = AVX_COMPARE_FLOATS(r2##n,m_rupp_sqr[kbin##n-1],_CMP_LT_OS); \
+							const int test2  = AVX_TEST_COMPARISON(m_bin_mask);				\
+							npairs[kbin##n] += AVX_BIT_COUNT_INT(test2);							\
+							const int test3 = AVX_TEST_COMPARISON(m_mask_left##n);		\
+							if(test3 == 0) {																					\
+								break;																									\
+							} \
+					} \
+			}
 
 	
 	for(int i=0;i<N;i++) {
@@ -572,9 +494,9 @@ int64_t * intrinsics_chunked_unroll4(const double * restrict pos0, const double 
 		const size_t bytes_offset = block_size*unroll_factor;
 		for(int j=0; j <=(N/block_size-unroll_factor);j+=unroll_factor) {
 			
-			GETVALUE(0);GETVALUE(1);GETVALUE(2);GETVALUE(3);
-			GETDIST(0);GETDIST(1);GETDIST(2);GETDIST(3);
-			UPDATEHIST(0);UPDATEHIST(1);UPDATEHIST(2);UPDATEHIST(3);
+			GETVALUE(0);GETVALUE(1);//GETVALUE(2);GETVALUE(3);GETVALUE(4);
+			GETDIST(0);GETDIST(1);//GETDIST(2);GETDIST(3);GETDIST(4);
+			UPDATEHIST(0);UPDATEHIST(1);//UPDATEHIST(2);UPDATEHIST(3);UPDATEHIST(4);
 
 			x1 += bytes_offset;
 			y1 += bytes_offset;
@@ -602,8 +524,11 @@ int64_t * intrinsics_chunked_unroll4(const double * restrict pos0, const double 
 #undef GETYVALUE
 #undef GETZVALUE
 #undef GETDIST
-	
-	return npairs;
+
+	for(int i=0;i<nrpbin;i++) {
+		results_npairs[i] = npairs[i];
+	}
+	free(npairs);
 }
 
 int main(int argc, char **argv)
@@ -620,16 +545,14 @@ int main(int argc, char **argv)
 	
   assert(test0 == 0  && test1 == 0 &&  "memory allocation failed");
 
-  const char allfunction_names[][MAXLEN] = {"intrinsics_chunked","naive","chunked","compiler_vectorized_chunked","intrinsics_chunked","naive","chunked","compiler_vectorized_chunked","intrinsics_chunked_unroll4"};
+  const char allfunction_names[][MAXLEN] = {"intrinsics_chunked","naive","chunked","compiler_vectorized_chunked","intrinsics_chunked","naive","chunked","compiler_vectorized_chunked","intrinsics_chunked_unroll"};
   const int ntests = sizeof(allfunction_names)/(sizeof(char)*MAXLEN);
-  int64_t * (*allfunctions[]) (const double * restrict x, const double * restrict y, const int, const char *)
-		= {intrinsics_chunked,naive,chunked,compiler_vectorized_chunked,intrinsics_chunked,naive,chunked,compiler_vectorized_chunked,intrinsics_chunked_unroll4};
-  const long totflop = (long) NELEMENTS * (long) NELEMENTS * (8);
+  void (*allfunctions[]) (const double * restrict x, const double * restrict y, const int, const int nrpbin, const double *rupp, int64_t * npairs)
+		= {intrinsics_chunked,naive,chunked,compiler_vectorized_chunked,intrinsics_chunked,naive,chunked,compiler_vectorized_chunked,intrinsics_chunked_unroll};
+  const double totflop = (double) NELEMENTS * (double) NELEMENTS * (8);
   const unsigned int seed = 42;
   const int max_niterations = 5000;
   const char *binfile = "./bins";
-	const int clustered_data = 1;
-	const char source_galaxy_file[] = "./Mr19_random_subsample_100000.txt";
 	
   double *rupp;
   int Nbins ;
@@ -650,13 +573,15 @@ int main(int argc, char **argv)
 		fill_array(x, NELEMENTS);
 		fill_array(y, NELEMENTS);
 	} else {
-		assert(NELEMENTS <= 100000 && "Clustered data only contains 100000 elements. NELEMENTS must be smaller than that");
+		assert(NELEMENTS <= max_galaxy_in_source_file && "Clustered data does not contain enough galaxies..please reduce NELEMENTS in defs.h");
+		assert(NDIM == 3 && "Clustered galaxy data contains *exactly* 3 spatial dimensions");
 		read_ascii(x, NELEMENTS, source_galaxy_file);
 		read_ascii(y, NELEMENTS, source_galaxy_file);
 	}
-
+		
   int64_t *npairs_reference = calculate_reference_histogram(x, y, NELEMENTS, binfile);
-
+	int64_t *npairs = my_calloc(sizeof(*npairs),Nbins);
+	
   printf("##################################################\n");
   printf("##  Function                            Time (ms) \n");
   printf("##################################################\n");
@@ -666,28 +591,31 @@ int main(int argc, char **argv)
 
 		if(i == test_to_run || test_to_run == -1) {
 			//warm-up
-			int64_t *npairs = (allfunctions[i]) (x, y, NELEMENTS, binfile);
+			(allfunctions[i]) (x, y, NELEMENTS, Nbins, rupp, npairs);
 			
 			//check-result
 			int numbad = check_result(npairs, npairs_reference, Nbins);
 			if(numbad != 0 ) {
 				fprintf(stderr,"ERROR: Number of incorrectly calculated histogram bins = %d out of total %d bins.\n", numbad, Nbins);
-				free(npairs);
 				goto cleanup;
 			}
 
-			free(npairs);
 			int actual_niterations=0;
-			double best_time_in_ms=1e16;
+			double best_time_in_ms=1e16, best_time_in_megacycles=1e16;
+			uint64_t start_cycles, end_cycles;
 			for(int iter=0;iter<max_niterations;iter++) {
 				actual_niterations++;
 				gettimeofday(&t0,NULL);
-				npairs = (allfunctions[i]) (x, y, NELEMENTS, binfile);
+				start_cycles = rdtsc();
+				(allfunctions[i]) (x, y, NELEMENTS, Nbins, rupp, npairs);
+				end_cycles = rdtsc();
 				gettimeofday(&t1,NULL);
-				free(npairs);
 			
 				const double this_time_in_ms = 1e3*(t1.tv_sec-t0.tv_sec) +  1e-3*(t1.tv_usec - t0.tv_usec);
 				if(this_time_in_ms < best_time_in_ms) best_time_in_ms = this_time_in_ms;
+				const double this_time_in_megacycles = (end_cycles - start_cycles)/(1024.*1024.);
+				if(this_time_in_megacycles < best_time_in_megacycles) best_time_in_megacycles = this_time_in_megacycles;
+
 				sum_sqr_x += this_time_in_ms*this_time_in_ms;
 				sum_x     += this_time_in_ms;
 
@@ -703,15 +631,18 @@ int main(int argc, char **argv)
 					break;
 				}
 			}
+			
 			const double mean_time = sum_x/actual_niterations;
-			printf(ANSI_COLOR_RED "# %-35s  %7.2lf +- %5.2lf " ANSI_COLOR_GREEN " (best -- %7.2lf) " ANSI_COLOR_RESET "," ANSI_COLOR_BLUE " >= %5.2lf GFlops [%04d iterations]" ANSI_COLOR_RESET "\n",
-						 allfunction_names[i], mean_time, sqrt(sum_sqr_x/actual_niterations - mean_time*mean_time), best_time_in_ms, (double) totflop*1e3/mean_time/1e9, actual_niterations);
+			const double sigma_time = sqrt(sum_sqr_x/actual_niterations - mean_time*mean_time);
+			const double gflops = (double) totflop/(1e-3*mean_time)/1e9;
+			printf(ANSI_COLOR_RED "# %-35s  %6.2lf +- %5.2lf " ANSI_COLOR_GREEN " (best -- %6.2lf ms, %6.2lf Mcycles) " ANSI_COLOR_RESET "," ANSI_COLOR_BLUE " >= %5.2lf GFlops [%04d iterations]" ANSI_COLOR_RESET "\n",
+						 allfunction_names[i], mean_time, sigma_time, best_time_in_ms, best_time_in_megacycles, gflops, actual_niterations);
 		}
   }
 
 cleanup:
   {
-		free((void *) x);free((void *) y);free(rupp);free(npairs_reference);
+		free((void *) x);free((void *) y);free(rupp);free(npairs_reference);free(npairs);
 		exit(EXIT_FAILURE);
   }
 
