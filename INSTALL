@@ -1,0 +1,20 @@
+/* Install instructions the pairwise repo
+	 Author: Manodeep Sinha <manodeep@gmail.com>
+	 Bugs: Please email me
+	 Date: At some point in early 2015
+*/
+
+Steps:
+
+1. Edit the common.mk file to select the appropriate use-case
+
+Options are:
+				a) SQRT_DIST: Distances calculated will be square-rooted (disabled by default)
+				b) COLORED_OUTPUT: Output messages will be colored (enabled by default)
+				c) USE_MKL: Use the Intel Math Kernel Library for BLAS (disabled by default)
+
+2. Set the compiler in common.mk -- icc/gcc/clang are supported. 
+
+3. Type make to create all the executables
+
+
