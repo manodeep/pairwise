@@ -12,7 +12,7 @@
 #include <assert.h>
 #include <math.h>
 
-#include "../defs.h"
+#include "defs.h"
 #include "utils.h"
 #include "pairwise_3d_ispc.h"
 

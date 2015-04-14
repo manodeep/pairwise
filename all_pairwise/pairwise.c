@@ -16,7 +16,7 @@
 #include <gsl/gsl_cblas.h>
 #endif
 
-#include "../defs.h"
+#include "defs.h"
 #include "utils.h"
 
 long naive(const double * restrict x1, const double * restrict y1, const int N, double * restrict d)

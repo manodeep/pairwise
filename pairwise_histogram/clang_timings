@@ -1,0 +1,13 @@
+Time taken to generate npairs reference implementation =   7.45 ms
+##################################################
+##  Function                            Time (ms) 
+##################################################
+# intrinsics_chunked                     1.74 +-  0.01  (best --   1.73 ms,   4.28 Mcycles) , >=  4.61 GFlops [0173 iterations]
+# naive                                  2.00 +-  0.26  (best --   1.96 ms,   4.87 Mcycles) , >=  4.01 GFlops [5000 iterations]
+# chunked                                1.44 +-  0.01  (best --   1.43 ms,   3.55 Mcycles) , >=  5.57 GFlops [0209 iterations]
+# compiler_vectorized_chunked            1.90 +-  0.02  (best --   1.90 ms,   4.70 Mcycles) , >=  4.20 GFlops [0158 iterations]
+# intrinsics_chunked                     0.63 +-  0.01  (best --   0.63 ms,   1.55 Mcycles) , >= 12.71 GFlops [0477 iterations]
+# naive                                  1.97 +-  0.02  (best --   1.96 ms,   4.87 Mcycles) , >=  4.05 GFlops [0152 iterations]
+# chunked                                1.44 +-  0.02  (best --   1.43 ms,   3.55 Mcycles) , >=  5.56 GFlops [0209 iterations]
+# compiler_vectorized_chunked            1.90 +-  0.01  (best --   1.90 ms,   4.70 Mcycles) , >=  4.21 GFlops [0158 iterations]
+# intrinsics_chunked_unroll              0.57 +-  0.00  (best --   0.57 ms,   1.40 Mcycles) , >= 14.08 GFlops [0529 iterations]

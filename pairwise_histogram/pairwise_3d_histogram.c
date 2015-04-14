@@ -13,18 +13,20 @@
 #include <stdint.h>
 #include <inttypes.h>
 #include <unistd.h>
+
+#include "defs.h"
 #include "utils.h"
 
-#include "../defs.h"
 
-int64_t * calculate_reference_histogram(const double * restrict pos0, const double * restrict pos1, const int N, const char *binfile)
+
+int64_t * calculate_reference_histogram(const double * restrict pos0, const double * restrict pos1, const int N, const char *file_with_bins)
 {
   struct timeval t0, t1;
   gettimeofday(&t0, NULL);
   double *rupp;
   int nrpbin ;
   double rpmin,rpmax;
-  setup_bins(binfile,&rpmin,&rpmax,&nrpbin,&rupp);
+  setup_bins(file_with_bins,&rpmin,&rpmax,&nrpbin,&rupp);
   assert(rpmin > 0.0 && rpmax > 0.0 && rpmin < rpmax && "[rpmin, rpmax] are valid inputs");
   assert(nrpbin > 0 && "Number of rp bins must be > 0");
 
@@ -552,7 +554,6 @@ int main(int argc, char **argv)
   const double totflop = (double) NELEMENTS * (double) NELEMENTS * (8);
   const unsigned int seed = 42;
   const int max_niterations = 5000;
-  const char *binfile = "./bins";
 	
   double *rupp;
   int Nbins ;
