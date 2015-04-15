@@ -195,7 +195,6 @@ int main(int argc, char **argv)
 	const int ntests = sizeof(allfunction_names)/(sizeof(char)*MAXLEN);
 	long (*allfunctions[]) (const double * restrict, const double * restrict, const int, double * restrict)      = {naive, chunked,compiler_vectorized_chunked,blas_computed,
 																																																									naive, chunked,compiler_vectorized_chunked,blas_computed};
-	const int max_niterations = 1000;
 	const unsigned int seed = 42;
 	srand(seed);
 

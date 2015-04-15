@@ -553,7 +553,6 @@ int main(int argc, char **argv)
 		= {intrinsics_chunked,naive,chunked,compiler_vectorized_chunked,intrinsics_chunked,naive,chunked,compiler_vectorized_chunked,intrinsics_chunked_unroll};
   const double totflop = (double) NELEMENTS * (double) NELEMENTS * (8);
   const unsigned int seed = 42;
-  const int max_niterations = 5000;
 	
   double *rupp;
   int Nbins ;

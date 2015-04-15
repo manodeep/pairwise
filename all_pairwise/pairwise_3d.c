@@ -261,13 +261,13 @@ void intrinsics_chunked(const double * restrict pos0, const double * restrict po
 
 
 
-void intrinsics_chunked_unroll4(const double * restrict pos0, const double * restrict pos1, const int N, double * restrict d)
+void intrinsics_chunked_unroll(const double * restrict pos0, const double * restrict pos1, const int N, double * restrict d)
 {
 	const int block_size = 4;
 #ifdef SQRT_DIST
 	const int unroll_factor=4;//28 sqrt operations are supported -> can be up to 28
 #else
-	const int unroll_factor=4;
+	const int unroll_factor=2;
 #endif	
 	double *x0 = (double *) pos0;
 	double *y0 = (double *) &pos0[N];
@@ -318,8 +318,8 @@ void intrinsics_chunked_unroll4(const double * restrict pos0, const double * res
  			/* GETDIST(10);GETDIST(11);GETDIST(12);GETDIST(13);GETDIST(14);GETDIST(15);GETDIST(16);GETDIST(17);GETDIST(18);GETDIST(19); */
 			/* GETDIST(20);GETDIST(21);GETDIST(22);GETDIST(23);GETDIST(24);GETDIST(25);GETDIST(26);GETDIST(27); */
 #else
-			GETVALUE(0);GETVALUE(1);GETVALUE(2);GETVALUE(3);
-			GETDIST(0);GETDIST(1);GETDIST(2);GETDIST(3);
+			GETVALUE(0);GETVALUE(1);//GETVALUE(2);GETVALUE(3);
+			GETDIST(0);GETDIST(1);//GETDIST(2);GETDIST(3);
 #endif			
 			x1 += bytes_offset;
 			y1 += bytes_offset;
@@ -369,11 +369,11 @@ int main(int argc, char **argv)
 	int test2 = posix_memalign((void **) &dist, ALIGNMENT, sizeof(*dist)*totnpairs);
 	assert(test0 == 0  && test1 == 0 && test2 == 0 && "memory allocation failed");
 
-  const char allfunction_names[][MAXLEN] = {"naive","chunked","compiler_vectorized_chunked","intrinsics_chunked","intrinsics_chunked_unroll4","pairwise_ispc",
-																						"naive","chunked","compiler_vectorized_chunked","intrinsics_chunked","intrinsics_chunked_unroll4","pairwise_ispc"};
+  const char allfunction_names[][MAXLEN] = {"naive","chunked","compiler_vectorized_chunked","intrinsics_chunked","intrinsics_chunked_unroll","pairwise_ispc",
+																						"naive","chunked","compiler_vectorized_chunked","intrinsics_chunked","intrinsics_chunked_unroll","pairwise_ispc"};
 	const int ntests = sizeof(allfunction_names)/(sizeof(char)*MAXLEN);
-	void (*allfunctions[]) (const double * restrict x, const double * restrict y, const int, double * restrict)      = {naive,chunked,compiler_vectorized_chunked,intrinsics_chunked,intrinsics_chunked_unroll4,pairwise_ispc,
-																																																											naive,chunked,compiler_vectorized_chunked,intrinsics_chunked,intrinsics_chunked_unroll4,pairwise_ispc};
+	void (*allfunctions[]) (const double * restrict x, const double * restrict y, const int, double * restrict)      = {naive,chunked,compiler_vectorized_chunked,intrinsics_chunked,intrinsics_chunked_unroll,pairwise_ispc,
+																																																											naive,chunked,compiler_vectorized_chunked,intrinsics_chunked,intrinsics_chunked_unroll,pairwise_ispc};
 
 #ifndef SQRT_DIST
 	const long totflop = (long) NELEMENTS * (long) NELEMENTS * (8);
@@ -382,7 +382,6 @@ int main(int argc, char **argv)
 #endif		
 
 	const unsigned int seed = 42;
-	const int max_niterations = 1000;
 	srand(seed);
 
 	int test_to_run = -1;
