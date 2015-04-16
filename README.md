@@ -32,7 +32,8 @@ arguments (AOS vs SOA).
 ### Performance Table
 
 Performing 1000 iterations over 2 sets with 1000 elements each. So, a total computation
-of 1 million squared-distances, averaged over 1000 iterations. 
+of 1 million squared-distances, averaged over (at most) 1000 iterations. Each test is
+repeated 5 times and the best average time is noted here. 
 
 Function                         |  gcc timings (ms)| icc timings (ms) | clang timings (ms)|
 ---------------------------------|------------------|------------------|-------------------|
