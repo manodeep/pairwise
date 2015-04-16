@@ -1,15 +1,9 @@
 ##################################################
 ##  Function                            Time (ms) 
 ##################################################
-# naive                                  1.58 +-  0.01  (best --   1.57 ms,   3.89 Mcycles) , >=  5.06 GFlops [0190 iterations]
-# chunked                                1.61 +-  0.01  (best --   1.60 ms,   3.97 Mcycles) , >=  4.97 GFlops [0187 iterations]
-# compiler_vectorized_chunked            1.63 +-  0.44  (best --   1.55 ms,   3.84 Mcycles) , >=  4.92 GFlops [1000 iterations]
-# intrinsics_chunked                     1.35 +-  0.04  (best --   0.82 ms,   2.04 Mcycles) , >=  5.94 GFlops [0223 iterations]
-# intrinsics_chunked_unroll4             1.34 +-  0.04  (best --   0.82 ms,   2.03 Mcycles) , >=  5.98 GFlops [0225 iterations]
-# pairwise_ispc                          0.63 +-  0.01  (best --   0.62 ms,   1.54 Mcycles) , >= 12.79 GFlops [0480 iterations]
-# naive                                  0.57 +-  0.01  (best --   0.57 ms,   1.41 Mcycles) , >= 13.98 GFlops [0525 iterations]
-# chunked                                0.58 +-  0.01  (best --   0.58 ms,   1.44 Mcycles) , >= 13.69 GFlops [0514 iterations]
-# compiler_vectorized_chunked            1.55 +-  0.02  (best --   1.55 ms,   3.84 Mcycles) , >=  5.15 GFlops [0194 iterations]
-# intrinsics_chunked                     1.35 +-  0.04  (best --   0.82 ms,   2.03 Mcycles) , >=  5.94 GFlops [0223 iterations]
-# intrinsics_chunked_unroll4             1.34 +-  0.03  (best --   0.82 ms,   2.03 Mcycles) , >=  5.98 GFlops [0225 iterations]
-# pairwise_ispc                          0.63 +-  0.02  (best --   0.62 ms,   1.54 Mcycles) , >= 12.71 GFlops [0477 iterations]
+# naive                                  0.56 +-  0.01  (best --   0.56 ms,   1.39 Mcycles) , 14.22 GFlops [0532 iterations]
+# chunked                                0.57 +-  0.00  (best --   0.57 ms,   1.40 Mcycles) , 14.10 GFlops [0529 iterations]
+# compiler_vectorized_chunked            1.45 +-  0.01  (best --   1.44 ms,   3.58 Mcycles) ,  5.53 GFlops [0207 iterations]
+# intrinsics_chunked                     0.50 +-  0.01  (best --   0.50 ms,   1.24 Mcycles) , 15.88 GFlops [0595 iterations]
+# intrinsics_chunked_unroll              0.49 +-  0.00  (best --   0.49 ms,   1.22 Mcycles) , 16.20 GFlops [0607 iterations]
+# pairwise_ispc                          0.62 +-  0.01  (best --   0.62 ms,   1.54 Mcycles) , 12.82 GFlops [0480 iterations]

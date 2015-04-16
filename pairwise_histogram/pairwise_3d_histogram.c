@@ -600,7 +600,7 @@ int main(int argc, char **argv)
 	int64_t numdone = 0;
 	int interrupted=0;
 
-	printf("Running benchmarks...\n");
+	fprintf(stderr,"# Running benchmarks with N = %05d particles\n",numpart);
 	init_my_progressbar(totniterations, &interrupted);
 
 	for(int irep=0;irep<repeat;irep++) {
@@ -657,9 +657,9 @@ int main(int argc, char **argv)
 				const double sigma_time = sqrt(sum_sqr_x/(iter+1.0) - mean_time*mean_time);
 				if(mean_time < function_best_mean_time[i]) {
 					function_best_mean_time[i] = mean_time;
-					function_sigma_time[i] = sigma_time;
 				}
 				function_niterations[i] = iter + 1;
+				function_sigma_time[i] = sigma_time;
 
         //If the std.dev is small compared to typical runtime and
 				//the code has run for more than XXX milli-seconds, then break

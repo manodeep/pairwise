@@ -34,28 +34,28 @@ arguments (AOS vs SOA).
 Performing 1000 iterations over 2 sets with 1000 elements each. So, a total computation
 of 1 million squared-distances, averaged over 1000 iterations. 
 
-Function                         |  gcc timings (ms)| icc timings (ms) | clang timings (ms)
----------------------------------|------------------|------------------|--------------------
-naive                            |   0.57 +- 0.01   |   0.54 +- 0.01   |   0.53 +- 0.01 
-chunked                          |   0.58 +- 0.01   |   0.58 +- 0.00   | 	 0.58 +- 0.01
-compiler_vectorized_chunked      |   1.55 +- 0.02   |   0.60 +- 0.01   | 	 1.58 +- 0.04
-intrinsics_chunked               |   1.35 +- 0.04   |   1.35 +- 0.04   | 	 1.35 +- 0.04
-intrinsics_chunked_unroll4       |   1.34 +- 0.03   |   1.34 +- 0.03   | 	 1.34 +- 0.04
-pairwise_ispc                    |   0.63 +- 0.02   |   0.62 +- 0.01   | 	 0.63 +- 0.01
+Function                         |  gcc timings (ms)| icc timings (ms) | clang timings (ms)|
+---------------------------------|------------------|------------------|-------------------|
+naive                            |   0.56 +-  0.01  |   0.53 +-  0.00  |   0.53 +-  0.01   | 
+chunked                          |   0.57 +-  0.00  |   0.57 +-  0.01  | 	 0.55 +-  0.01   |
+compiler_vectorized_chunked      |   1.45 +-  0.01  |   0.60 +-  0.01  | 	 1.54 +-  0.00   |
+intrinsics_chunked               |   0.50 +-  0.01  |   0.63 +-  0.01  | 	 0.52 +-  0.01   |
+intrinsics_chunked_unroll4       |   0.49 +-  0.00  |   0.59 +-  0.01  | 	 0.53 +-  0.00   |
+pairwise_ispc                    |   0.62 +-  0.01  |   0.63 +-  0.01  | 	 0.63 +-  0.01   |
 
 
 Now, the same table just that the distances are square-rooted. Since, square-root is a
 very expensive operation, the timings are about a factor of 5 larger on average. 
 
 
-Function                         |  gcc timings (ms)| icc timings (ms) | clang timings (ms)
----------------------------------|------------------|------------------|--------------------
-naive                            |   3.21 +- 0.06   |   3.20 +- 0.02   |   3.20 +- 0.01 
-chunked                          |   3.20 +- 0.02   |   3.20 +- 0.01   | 	 3.20 +- 0.02
-compiler_vectorized_chunked      |   4.75 +- 0.01   |   3.81 +- 0.02   | 	 4.76 +- 0.02
-intrinsics_chunked               |   3.20 +- 0.02   |   3.20 +- 0.01   | 	 3.19 +- 0.01
-intrinsics_chunked_unroll4       |   3.28 +- 0.01   |   3.23 +- 0.01   | 	 3.20 +- 0.02
-pairwise_ispc                    |   3.20 +- 0.02   |   3.20 +- 0.02   | 	 3.20 +- 0.01
+Function                         |  gcc timings (ms)| icc timings (ms) | clang timings (ms)|
+---------------------------------|------------------|------------------|-------------------|
+naive                            |   3.19 +-  0.02  |   3.19 +-  0.03  |   3.19 +-  0.00   | 
+chunked                          |   3.19 +-  0.02  |   3.19 +-  0.01  | 	 3.19 +-  0.02   |
+compiler_vectorized_chunked      |   3.74 +-  0.02  |   3.81 +-  0.01  | 	 4.75 +-  0.00   |
+intrinsics_chunked               |   3.19 +-  0.03  |   3.19 +-  0.03  | 	 3.19 +-  0.02   |
+intrinsics_chunked_unroll4       |   3.27 +-  0.02  |   3.21 +-  0.03  | 	 3.19 +-  0.02   |
+pairwise_ispc                    |   3.19 +-  0.02  |   3.19 +-  0.02  | 	 3.19 +-  0.00   |
 
 Expectedly, C is much faster than any numba/cython/f2py combination can
 get you. For comparison, the fastest timings with numba/cython/f2py was around 9 ms. 
@@ -75,13 +75,13 @@ histograms of all pairwise distances. The fastest codes will probably get
 migrated into my correlation function routines [here](https://bitbucket.org/manodeep/corrfunc/).
 
 
-Function                         |  gcc timings (ms)| icc timings (ms) | clang timings (ms)
----------------------------------|------------------|------------------|--------------------
-naive                            |   2.16 +- 0.03   |   2.14 +- 0.01   |   1.97 +- 0.02
-chunked                          |   1.41 +- 0.02   |   1.52 +- 0.00   | 	 1.44 +- 0.01
-compiler_vectorized_chunked      |   2.17 +- 0.01   |   2.24 +- 0.02   | 	 1.90 +- 0.01
-intrinsics_chunked               |   0.62 +- 0.01   |   0.60 +- 0.01   | 	 0.63 +- 0.01
-intrinsics_chunked_unroll        |   0.56 +- 0.00   |   0.60 +- 0.01   |   0.57 +- 0.00 
+Function                         |  gcc timings (ms)| icc timings (ms) | clang timings (ms)| 
+---------------------------------|------------------|------------------|-------------------|
+naive                            |  2.12 +-  0.02   |   2.23 +-  0.03  |   1.97 +-  0.00   |
+chunked                          |  1.42 +-  0.01   |   1.50 +-  0.01  | 	 1.44 +-  0.01   |
+compiler_vectorized_chunked      |  2.19 +-  0.02   |   2.21 +-  0.01  | 	 1.90 +-  0.01   |
+intrinsics_chunked               |  0.60 +-  0.00   |   0.68 +-  0.01  | 	 0.71 +-  0.00   |
+intrinsics_chunked_unroll        |  0.55 +-  0.01   |   0.67 +-  0.02  |   0.63 +-  0.01   |
 
 # Author
 

@@ -30,7 +30,7 @@ GSL_LINK   := $(shell gsl-config --libs) -Xlinker -rpath -Xlinker $(GSL_LIBDIR)
 
 
 ifeq (icc,$(findstring icc,$(CC)))
-  CFLAGS += -xhost -opt-prefetch -opt-prefetch-distance=16 #-vec-report6  
+  CFLAGS += -xhost #-opt-prefetch -opt-prefetch-distance=16 #-vec-report6  
 else
 
   ### compiler specific flags for gcc
