@@ -40,7 +40,7 @@ naive                            |   0.56 +-  0.01  |   0.53 +-  0.00  |   0.53 
 chunked                          |   0.57 +-  0.00  |   0.57 +-  0.01  | 	 0.55 +-  0.01   |
 compiler_vectorized_chunked      |   1.45 +-  0.01  |   0.60 +-  0.01  | 	 1.54 +-  0.00   |
 intrinsics_chunked               |   0.50 +-  0.01  |   0.63 +-  0.01  | 	 0.52 +-  0.01   |
-intrinsics_chunked_unroll4       |   0.49 +-  0.00  |   0.59 +-  0.01  | 	 0.53 +-  0.00   |
+intrinsics_chunked_unroll2       |   0.49 +-  0.00  |   0.59 +-  0.01  | 	 0.53 +-  0.00   |
 pairwise_ispc                    |   0.62 +-  0.01  |   0.63 +-  0.01  | 	 0.63 +-  0.01   |
 
 
@@ -81,7 +81,7 @@ naive                            |  2.12 +-  0.02   |   2.23 +-  0.03  |   1.97 
 chunked                          |  1.42 +-  0.01   |   1.50 +-  0.01  | 	 1.44 +-  0.01   |
 compiler_vectorized_chunked      |  2.19 +-  0.02   |   2.21 +-  0.01  | 	 1.90 +-  0.01   |
 intrinsics_chunked               |  0.60 +-  0.00   |   0.68 +-  0.01  | 	 0.71 +-  0.00   |
-intrinsics_chunked_unroll        |  0.55 +-  0.01   |   0.67 +-  0.02  |   0.63 +-  0.01   |
+intrinsics_chunked_unroll2       |  0.55 +-  0.01   |   0.67 +-  0.02  |   0.63 +-  0.01   |
 
 # Author
 
