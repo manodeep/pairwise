@@ -95,9 +95,9 @@ long compiler_vectorized_chunked(const double * restrict x1, const double * rest
 			}
 			numcomputed+=block_size;
 		}			
+		double *dist = (double *) &d[i*N + j];
 		for(int jj=0;j<N;jj++,j++) {
-			double *dist = (double *) &d[i*N + j+jj];
-			const double *y0 = (const double *) (&y1[(j+jj)*NDIM]);
+			const double *y0 = (const double *) (&y1[j*NDIM]);
 			const double *x0 = (const double *) (&x1[i*NDIM]);
 			const double dx = x0[0] - y0[0];
 			const double dy = x0[1] - y0[1];
@@ -135,11 +135,10 @@ long blas_computed(const double * restrict x1, const double * restrict y1, const
 			const double *y0 = (const double *) &y1[j*NDIM];
 			const double sqr_y0_norm = y0[0]*y0[0] + y0[1]*y0[1] + y0[2]*y0[2];
 			double *dist = (double *) &d[i*N + j];
-			const double sum = *dist + (sqr_x0_norm + sqr_y0_norm);
+			*dist += (sqr_x0_norm + sqr_y0_norm);
+			
 #ifdef SQRT_DIST
-			*dist = sqrt(sum);
-#else
-			*dist = sum;
+			*dist = sqrt(*dist);
 #endif			
 		}
 		x0 += NDIM;
@@ -184,19 +183,25 @@ long check_result(double *dist, const double *x, const double *y, const int N)
 }
 
 
-int main(void)
+int main(int argc, char **argv)
 {
-	const size_t numbytes = NDIM*NELEMENTS;
+	int numpart = 0;
+	if(argc > 1 ) {
+		numpart = atoi(argv[1]);
+	} else {
+		numpart = NELEMENTS;
+	}
+
+	const size_t numbytes = NDIM*numpart;
 	double *x = calloc(sizeof(*x), numbytes);
 	double *y = calloc(sizeof(*y), numbytes);
-	const long totnpairs = (long) NELEMENTS * (long) NELEMENTS;
-	double * restrict dist = calloc(sizeof(*dist), totnpairs);
+	const long totnpairs = (long) numpart * (long) numpart;
+	double *dist = calloc(sizeof(*dist), totnpairs);
 	assert(x != NULL && y != NULL && dist != NULL && "memory allocation failed");
   const char allfunction_names[][MAXLEN] = {"naive","chunked","compiler_vectorized_chunked","blas_computed"};
 	const int ntests = sizeof(allfunction_names)/(sizeof(char)*MAXLEN);
 	long (*allfunctions[]) (const double * restrict, const double * restrict, const int, double * restrict)      = {naive, chunked,compiler_vectorized_chunked,blas_computed};
 																																																						
-	const unsigned int seed = 42;
 	srand(seed);
 
 	double function_best_mean_time[ntests],function_sigma_time[ntests],function_best_time_in_ms[ntests],function_best_mcycles[ntests];
@@ -208,27 +213,26 @@ int main(void)
 		function_best_mcycles[i] = 1e16;
 	}
 #ifndef SQRT_DIST
-	const long totflop = (long) NELEMENTS * (long) NELEMENTS * (8);
+	const long totflop = (long) numpart * (long) numpart * (8);
 #else
-	const long totflop = (long) NELEMENTS * (long) NELEMENTS * (8 + 10); //some hand-wavy thing saying that sqrt is 10 flop
+	const long totflop = (long) numpart * (long) numpart * (8 + 10); //some hand-wavy thing saying that sqrt is 10 flop
 #endif		
 	
 	if(clustered_data == 0) {
-		fill_array(x, NELEMENTS);
-		fill_array(y, NELEMENTS);
+		fill_array(x, numpart);
+		fill_array(y, numpart);
 	} else {
-		assert(NELEMENTS <= max_galaxy_in_source_file && "Clustered data does not contain enough galaxies..please reduce NELEMENTS in defs.h");
+		assert(numpart <= max_galaxy_in_source_file && "Clustered data does not contain enough galaxies..please reduce numpart in defs.h");
 		assert(NDIM == 3 && "Clustered galaxy data contains *exactly* 3 spatial dimensions");
-		read_ascii(x, NELEMENTS, source_galaxy_file);
-		read_ascii(y, NELEMENTS, source_galaxy_file);
+		read_ascii(x, numpart, source_galaxy_file);
+		read_ascii(y, numpart, source_galaxy_file);
 	}
 
-	const int repeat=5;
 	const int64_t totniterations = repeat*ntests*(int64_t) max_niterations;
 	int64_t numdone = 0;
 	int interrupted=0;
 
-	printf("Running benchmarks...\n");
+	printf("# Running benchmarks with N = %05d particles\n",numpart);
 	init_my_progressbar(totniterations, &interrupted);
 	for(int irep=0;irep<repeat;irep++) {
 		for(int i=0;i<ntests;i++) {
@@ -237,13 +241,13 @@ int main(void)
 
 			//warm-up
 			gettimeofday(&t0,NULL);
-			long ncomputed = (allfunctions[i]) (x, y, NELEMENTS, dist);
+			long ncomputed = (allfunctions[i]) (x, y, numpart, dist);
 			gettimeofday(&t1,NULL);
 			
 			//check-result
-			long numbad = check_result(dist, x, y, NELEMENTS);
+			long numbad = check_result(dist, x, y, numpart);
 			if(numbad != 0 || ncomputed != totnpairs) {
-				fprintf(stderr,"ERROR: Number of incorrectly calculated distances = %ld out of a total of (%ld) possible pairs. Npairs computed = %ld\n", numbad, totnpairs, ncomputed);
+				fprintf(stderr,"ERROR: In function `%s' Number of incorrectly calculated distances = %ld out of a total of (%ld) possible pairs. Npairs computed = %ld\n", allfunction_names[i],numbad, totnpairs, ncomputed);
 				goto cleanup;
 			}
 				
@@ -253,7 +257,7 @@ int main(void)
 			for(int iter=0;iter<max_niterations;iter++) {
 				gettimeofday(&t0,NULL);
 				start_cycles = rdtsc();
-				(allfunctions[i]) (x, y, NELEMENTS, dist);
+				(allfunctions[i]) (x, y, numpart, dist);
 				end_cycles = rdtsc();
 				gettimeofday(&t1,NULL);
 
@@ -282,14 +286,15 @@ int main(void)
 				
 				const double mean_time  = sum_x/(iter+1.0);
 				const double sigma_time = sqrt(sum_sqr_x/(iter+1.0) - mean_time*mean_time);
-				//If the std.dev is small compared to typical runtime and
+				if(mean_time < function_best_mean_time[i]) {
+					function_best_mean_time[i] = mean_time;
+					function_sigma_time[i] = sigma_time;
+				}
+				function_niterations[i] = iter + 1;
+
+        //If the std.dev is small compared to typical runtime and
 				//the code has run for more than XXX milli-seconds, then break
-				if(sigma_time/mean_time < 0.05 && sum_x >= 300.0 && iter >= 10) {
-					if(mean_time < function_best_mean_time[i]) {
-						function_best_mean_time[i] = mean_time;
-						function_sigma_time[i] = sigma_time;
-						function_niterations[i] = iter + 1;
-					}
+				if(sigma_time/mean_time < convergence_ratio && sum_x >= 300 && iter >= 5) {
 					numdone = numdone_before_iter_loop + max_niterations;
 					break;
 				}

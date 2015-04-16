@@ -18,6 +18,10 @@
 #include "utils.h"
 #include "progressbar.h"
 
+#if (NDIM != 3) 
+#error NDIM must be set to 3
+#endif
+	
 
 int64_t * calculate_reference_histogram(const double * restrict pos0, const double * restrict pos1, const int N, const char *file_with_bins)
 {
@@ -74,6 +78,7 @@ int64_t * calculate_reference_histogram(const double * restrict pos0, const doub
   for(int64_t i=0;i<totnpairs;i++) {
 		const DOUBLE r2 = d[i];
 		if(r2 < sqr_rpmin || r2 >= sqr_rpmax) continue;
+		
 		for(int kbin=nrpbin-1;kbin>=1;kbin--){
 			if(r2 >= rupp_sqr[kbin-1]) {
 				npairs_reference[kbin]++;
@@ -102,7 +107,7 @@ int check_result(const int64_t *npairs, const int64_t *npairs_reference, const i
 				numbadprinted++;
 			}
 			bad++;
-		}
+		} 
   }
 	
   return bad;
@@ -290,6 +295,7 @@ void compiler_vectorized_chunked(const double * restrict pos0, const double * re
 			const double dy = ypos - y1[jj];
 			const double dz = zpos - z1[jj];
 			const double r2 = dx*dx + dy*dy + dz*dz;
+			if(r2 >= sqr_rpmax || r2 < sqr_rpmin) continue;
 			for(int kbin=nrpbin-1;kbin>=1;kbin--){
 				if(r2 >= rupp_sqr[kbin-1]) {
 					npairs[kbin]++;
@@ -347,9 +353,9 @@ void intrinsics_chunked(const double * restrict pos0, const double * restrict po
 
 		int j;		
 		for(j=0;j<=(N-NVEC);j+=NVEC){
-			const AVX_FLOATS m_x1 = AVX_LOAD_FLOATS_ALIGNED(x1);
-			const AVX_FLOATS m_y1 = AVX_LOAD_FLOATS_ALIGNED(y1);
-			const AVX_FLOATS m_z1 = AVX_LOAD_FLOATS_ALIGNED(z1);
+			const AVX_FLOATS m_x1 = AVX_LOAD_FLOATS_UNALIGNED(x1);
+			const AVX_FLOATS m_y1 = AVX_LOAD_FLOATS_UNALIGNED(y1);
+			const AVX_FLOATS m_z1 = AVX_LOAD_FLOATS_UNALIGNED(z1);
 			//set constant := sqr_rpmax
 			const AVX_FLOATS m_sqr_rpmax = AVX_SET_FLOAT(sqr_rpmax);
 			//set constant := sqr_rpmin
@@ -430,6 +436,8 @@ void intrinsics_chunked_unroll(const double * restrict pos0, const double * rest
 	const int block_size = 4;
 	const int unroll_factor=2;
 
+	assert(N >= NVEC*unroll_factor && "Number of elements present must be larger than the assumed size");
+	
   double *x0 = (double *) pos0;
   double *y0 = (double *) &pos0[N];
   double *z0 = (double *) &pos0[2*N];
@@ -452,9 +460,9 @@ void intrinsics_chunked_unroll(const double * restrict pos0, const double * rest
 	const AVX_FLOATS m_sqr_rpmax = AVX_SET_FLOAT(sqr_rpmax);
 	const AVX_FLOATS m_sqr_rpmin = AVX_SET_FLOAT(sqr_rpmin);
 			
-#define GETXVALUE(n) const AVX_FLOATS diffx##n = AVX_SUBTRACT_FLOATS(AVX_LOAD_FLOATS_ALIGNED(&x1[n*block_size]), m_xpos)
-#define GETYVALUE(n) const AVX_FLOATS diffy##n = AVX_SUBTRACT_FLOATS(AVX_LOAD_FLOATS_ALIGNED(&y1[n*block_size]), m_ypos)
-#define GETZVALUE(n) const AVX_FLOATS diffz##n = AVX_SUBTRACT_FLOATS(AVX_LOAD_FLOATS_ALIGNED(&z1[n*block_size]), m_zpos)
+#define GETXVALUE(n) const AVX_FLOATS diffx##n = AVX_SUBTRACT_FLOATS(AVX_LOAD_FLOATS_UNALIGNED(&x1[n*block_size]), m_xpos)
+#define GETYVALUE(n) const AVX_FLOATS diffy##n = AVX_SUBTRACT_FLOATS(AVX_LOAD_FLOATS_UNALIGNED(&y1[n*block_size]), m_ypos)
+#define GETZVALUE(n) const AVX_FLOATS diffz##n = AVX_SUBTRACT_FLOATS(AVX_LOAD_FLOATS_UNALIGNED(&z1[n*block_size]), m_zpos)
 #define GETVALUE(n)  GETXVALUE(n);GETYVALUE(n);GETZVALUE(n)
 
 #define GETDIST(n) AVX_FLOATS r2##n = AVX_ADD_FLOATS(AVX_SQUARE_FLOAT(diffx##n),AVX_ADD_FLOATS(AVX_SQUARE_FLOAT(diffy##n), AVX_SQUARE_FLOAT(diffz##n)))
@@ -495,7 +503,8 @@ void intrinsics_chunked_unroll(const double * restrict pos0, const double * rest
 		int offset = 0;
 		const size_t bytes_offset = block_size*unroll_factor;
 		for(int j=0; j <=(N/block_size-unroll_factor);j+=unroll_factor) {
-			
+
+			//Uncomment as necessary to reflect whatever value of unroll_factor you are using
 			GETVALUE(0);GETVALUE(1);//GETVALUE(2);GETVALUE(3);//GETVALUE(4);
 			GETDIST(0);GETDIST(1);//GETDIST(2);GETDIST(3);//GETDIST(4);
 			UPDATEHIST(0);UPDATEHIST(1);//UPDATEHIST(2);UPDATEHIST(3);//UPDATEHIST(4);
@@ -533,26 +542,28 @@ void intrinsics_chunked_unroll(const double * restrict pos0, const double * rest
 	free(npairs);
 }
 
-int main(void)
+int main(int argc, char **argv)
 {
-  const size_t numbytes = NDIM*NELEMENTS;
+	int numpart = 0;
+	if(argc > 1 ) {
+		numpart = atoi(argv[1]);
+	} else {
+		numpart = NELEMENTS;
+	}
+	
+  const size_t numbytes = NDIM*numpart;
   double *x    __attribute__((aligned(ALIGNMENT))) = NULL;
   double *y    __attribute__((aligned(ALIGNMENT))) = NULL;
   int test0 = posix_memalign((void **) &x, ALIGNMENT, sizeof(*x)*numbytes);
   int test1 = posix_memalign((void **) &y, ALIGNMENT, sizeof(*y)*numbytes); 
 
-#if (NDIM != 3) 
-#error NDIM must be set to 3
-#endif
-	
   assert(test0 == 0  && test1 == 0 &&  "memory allocation failed");
 
   const char allfunction_names[][MAXLEN] = {"naive","chunked","compiler_vectorized_chunked","intrinsics_chunked","intrinsics_chunked_unroll"};
   const int ntests = sizeof(allfunction_names)/(sizeof(char)*MAXLEN);
   void (*allfunctions[]) (const double * restrict x, const double * restrict y, const int, const int nrpbin, const double *rupp, int64_t * npairs)
 		= {naive,chunked,compiler_vectorized_chunked,intrinsics_chunked,intrinsics_chunked_unroll};
-  const double totflop = (double) NELEMENTS * (double) NELEMENTS * (8);
-  const unsigned int seed = 42;
+  const double totflop = (double) numpart * (double) numpart * (8);
 
 	double function_best_mean_time[ntests],function_sigma_time[ntests],function_best_time_in_ms[ntests],function_best_mcycles[ntests];
 	int function_niterations[ntests];
@@ -573,19 +584,18 @@ int main(void)
   srand(seed);
 
 	if(clustered_data == 0) {
-		fill_array(x, NELEMENTS);
-		fill_array(y, NELEMENTS);
+		fill_array(x, numpart);
+		fill_array(y, numpart);
 	} else {
-		assert(NELEMENTS <= max_galaxy_in_source_file && "Clustered data does not contain enough galaxies..please reduce NELEMENTS in defs.h");
+		assert(numpart <= max_galaxy_in_source_file && "Clustered data does not contain enough galaxies..please reduce NELEMENTS in defs.h or pass a smaller number on the command-line");
 		assert(NDIM == 3 && "Clustered galaxy data contains *exactly* 3 spatial dimensions");
-		read_ascii(x, NELEMENTS, source_galaxy_file);
-		read_ascii(y, NELEMENTS, source_galaxy_file);
+		read_ascii(x, numpart, source_galaxy_file);
+		read_ascii(y, numpart, source_galaxy_file);
 	}
 		
-  int64_t *npairs_reference = calculate_reference_histogram(x, y, NELEMENTS, binfile);
+  int64_t *npairs_reference = calculate_reference_histogram(x, y, numpart, binfile);
 	int64_t *npairs = my_calloc(sizeof(*npairs),Nbins);
 	
-	const int repeat=5;
 	const int64_t totniterations = repeat*ntests*(int64_t) max_niterations;
 	int64_t numdone = 0;
 	int interrupted=0;
@@ -599,12 +609,12 @@ int main(void)
 			double sum_x=0.0, sum_sqr_x=0.0;
 			
 			//warm-up
-			(allfunctions[i]) (x, y, NELEMENTS, Nbins, rupp, npairs);
+			(allfunctions[i]) (x, y, numpart, Nbins, rupp, npairs);
 			
 			//check-result
 			int numbad = check_result(npairs, npairs_reference, Nbins);
 			if(numbad != 0 ) {
-				fprintf(stderr,"ERROR: Number of incorrectly calculated histogram bins = %d out of total %d bins.\n", numbad, Nbins);
+				fprintf(stderr,"ERROR: In function `%s' Number of incorrectly calculated histogram bins = %d out of total %d bins.\n", allfunction_names[i],numbad, Nbins);
 				goto cleanup;
 			}
 			
@@ -614,7 +624,7 @@ int main(void)
 			for(int iter=0;iter<max_niterations;iter++) {
 				gettimeofday(&t0,NULL);
 				start_cycles = rdtsc();
-				(allfunctions[i]) (x, y, NELEMENTS, Nbins, rupp, npairs);
+				(allfunctions[i]) (x, y, numpart, Nbins, rupp, npairs);
 				end_cycles = rdtsc();
 				gettimeofday(&t1,NULL);
 				
@@ -629,9 +639,6 @@ int main(void)
 				sum_sqr_x += this_time_in_ms*this_time_in_ms;
 				sum_x     += this_time_in_ms;
 				
-				if(max_niterations <= 10) {
-					printf("     %-35s  %0.2lf \n",allfunction_names[i], this_time_in_ms);
-				}
 				
 				if(best_time_in_ms < function_best_time_in_ms[i]) {
 					function_best_time_in_ms[i] = best_time_in_ms;
@@ -640,17 +647,23 @@ int main(void)
 				if(best_time_in_megacycles < function_best_mcycles[i]) {
 					function_best_mcycles[i] = best_time_in_megacycles;
 				}
+
+				if(max_niterations <= 10) {
+					printf("     %-35s  %0.2lf max_niterations = %d\n",allfunction_names[i], this_time_in_ms,max_niterations);
+					interrupted=1;
+				}
 				
 				const double mean_time  = sum_x/(iter+1.0);
 				const double sigma_time = sqrt(sum_sqr_x/(iter+1.0) - mean_time*mean_time);
-				//If the std.dev is small compared to typical runtime and
+				if(mean_time < function_best_mean_time[i]) {
+					function_best_mean_time[i] = mean_time;
+					function_sigma_time[i] = sigma_time;
+				}
+				function_niterations[i] = iter + 1;
+
+        //If the std.dev is small compared to typical runtime and
 				//the code has run for more than XXX milli-seconds, then break
-				if(sigma_time/mean_time < 0.05 && sum_x >= 300.0 && iter >= 10) {
-					if(mean_time < function_best_mean_time[i]) {
-						function_best_mean_time[i] = mean_time;
-						function_sigma_time[i] = sigma_time;
-						function_niterations[i] = iter + 1;
-					}
+				if(sigma_time/mean_time < convergence_ratio && sum_x >= 300 && iter >= 5) {
 					numdone = numdone_before_iter_loop + max_niterations;
 					break;
 				}

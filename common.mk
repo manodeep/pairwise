@@ -44,7 +44,7 @@ else
   endif
 
   #### common options for gcc and clang
-  CFLAGS  += -mavx #-march=native -mavx -mpopcnt
+  CFLAGS  += -march=native -mavx -mpopcnt
 	CFLAGS  += -Wformat=2  -Wpacked  -Wnested-externs -Wpointer-arith  -Wredundant-decls  -Wfloat-equal 
   CFLAGS  +=  -Wcast-align -Wnested-externs -Wstrict-prototypes  #-D_POSIX_C_SOURCE=2 -Wpadded -Wconversion
   CLINK += -lm
