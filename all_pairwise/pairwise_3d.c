@@ -14,6 +14,8 @@
 
 #include "defs.h"
 #include "utils.h"
+#include "progressbar.h"
+
 #include "pairwise_3d_ispc.h"
 
 long check_result(double *dist, const double *pos0, const double *pos1, const int N)
@@ -311,15 +313,11 @@ void intrinsics_chunked_unroll(const double * restrict pos0, const double * rest
 
 			
 #ifdef SQRT_DIST			
-			GETVALUE(0);GETVALUE(1);GETVALUE(2);GETVALUE(3);//GETVALUE(4);//GETVALUE(5);//GETVALUE(6);//GETVALUE(7);//GETVALUE(8);GETVALUE(9);
-			/* GETVALUE(10);GETVALUE(11);GETVALUE(12);GETVALUE(13);GETVALUE(14);GETVALUE(15);GETVALUE(16);GETVALUE(17);GETVALUE(18);GETVALUE(19); */
-			/* GETVALUE(20);GETVALUE(21);GETVALUE(22);GETVALUE(23);GETVALUE(24);GETVALUE(25);GETVALUE(26);GETVALUE(27); */
-			GETDIST(0);GETDIST(1);GETDIST(2);GETDIST(3);//GETDIST(4);//GETDIST(5);//GETDIST(6);//GETDIST(7);//GETDIST(8);GETDIST(9);
- 			/* GETDIST(10);GETDIST(11);GETDIST(12);GETDIST(13);GETDIST(14);GETDIST(15);GETDIST(16);GETDIST(17);GETDIST(18);GETDIST(19); */
-			/* GETDIST(20);GETDIST(21);GETDIST(22);GETDIST(23);GETDIST(24);GETDIST(25);GETDIST(26);GETDIST(27); */
+			GETVALUE(0);GETVALUE(1);GETVALUE(2);GETVALUE(3);
+			GETDIST(0);GETDIST(1);GETDIST(2);GETDIST(3);
 #else
-			GETVALUE(0);GETVALUE(1);//GETVALUE(2);GETVALUE(3);
-			GETDIST(0);GETDIST(1);//GETDIST(2);GETDIST(3);
+			GETVALUE(0);GETVALUE(1);
+			GETDIST(0);GETDIST(1);
 #endif			
 			x1 += bytes_offset;
 			y1 += bytes_offset;
@@ -351,7 +349,7 @@ void intrinsics_chunked_unroll(const double * restrict pos0, const double * rest
 	
 }
 
-int main(int argc, char **argv)
+int main(void)
 {
 
 #if (NDIM != 3)
@@ -369,12 +367,19 @@ int main(int argc, char **argv)
 	int test2 = posix_memalign((void **) &dist, ALIGNMENT, sizeof(*dist)*totnpairs);
 	assert(test0 == 0  && test1 == 0 && test2 == 0 && "memory allocation failed");
 
-  const char allfunction_names[][MAXLEN] = {"naive","chunked","compiler_vectorized_chunked","intrinsics_chunked","intrinsics_chunked_unroll","pairwise_ispc",
-																						"naive","chunked","compiler_vectorized_chunked","intrinsics_chunked","intrinsics_chunked_unroll","pairwise_ispc"};
+  const char allfunction_names[][MAXLEN] = {"naive","chunked","compiler_vectorized_chunked","intrinsics_chunked","intrinsics_chunked_unroll","pairwise_ispc"};
 	const int ntests = sizeof(allfunction_names)/(sizeof(char)*MAXLEN);
-	void (*allfunctions[]) (const double * restrict x, const double * restrict y, const int, double * restrict)      = {naive,chunked,compiler_vectorized_chunked,intrinsics_chunked,intrinsics_chunked_unroll,pairwise_ispc,
-																																																											naive,chunked,compiler_vectorized_chunked,intrinsics_chunked,intrinsics_chunked_unroll,pairwise_ispc};
+	void (*allfunctions[]) (const double * restrict x, const double * restrict y, const int, double * restrict)      = {naive,chunked,compiler_vectorized_chunked,intrinsics_chunked,intrinsics_chunked_unroll,pairwise_ispc};
 
+	double function_best_mean_time[ntests],function_sigma_time[ntests],function_best_time_in_ms[ntests],function_best_mcycles[ntests];
+	int function_niterations[ntests];
+	for(int i=0;i<ntests;i++) {
+		function_best_mean_time[i] = 1e16;
+		function_sigma_time[i] = 0.0;
+		function_best_time_in_ms[i] = 1e16;
+		function_best_mcycles[i] = 1e16;
+	}
+	
 #ifndef SQRT_DIST
 	const long totflop = (long) NELEMENTS * (long) NELEMENTS * (8);
 #else
@@ -383,12 +388,6 @@ int main(int argc, char **argv)
 
 	const unsigned int seed = 42;
 	srand(seed);
-
-	int test_to_run = -1;
-	if(argc > 1) {
-		test_to_run = atoi(argv[1]);
-		if(test_to_run >= ntests) test_to_run = -1;
-	}
 
 	if(clustered_data == 0) {
 		fill_array(x, NELEMENTS);
@@ -400,14 +399,19 @@ int main(int argc, char **argv)
 		read_ascii(y, NELEMENTS, source_galaxy_file);
 	}
 
-	printf("##################################################\n");
-	printf("##  Function                            Time (ms) \n");
-	printf("##################################################\n");
-	for(int i=0;i<ntests;i++) {
-		struct timeval t0,t1;
-		double sum_x=0.0, sum_sqr_x=0.0;
+	const int repeat=5;
+	const int64_t totniterations = repeat*ntests*(int64_t) max_niterations;
+	int64_t numdone = 0;
+	int interrupted=0;
 
-		if(i == test_to_run || test_to_run == -1) {
+	printf("Running benchmarks...\n");
+	init_my_progressbar(totniterations, &interrupted);
+
+	for(int irep=0;irep<repeat;irep++) {
+		for(int i=0;i<ntests;i++) {
+			struct timeval t0,t1;
+			double sum_x=0.0, sum_sqr_x=0.0;
+			
 			//warm-up
 			(allfunctions[i]) (x, y, NELEMENTS, dist);
 			
@@ -418,46 +422,73 @@ int main(int argc, char **argv)
 				goto cleanup;
 			}
 			
-			int actual_niterations=0;
 			double best_time_in_ms=1e16, best_time_in_megacycles=1e16;
 			uint64_t start_cycles, end_cycles;
+			const int64_t numdone_before_iter_loop = numdone;
 			for(int iter=0;iter<max_niterations;iter++) {
-				actual_niterations++;
 				gettimeofday(&t0,NULL);
 				start_cycles = rdtsc();
 				(allfunctions[i]) (x, y, NELEMENTS, dist);
 				end_cycles = rdtsc();
 				gettimeofday(&t1,NULL);
-			
+				
+				numdone++;
+				my_progressbar(numdone,&interrupted);
+				
 				const double this_time_in_ms = 1e3*(t1.tv_sec-t0.tv_sec) +  1e-3*(t1.tv_usec - t0.tv_usec);
 				if(this_time_in_ms < best_time_in_ms) best_time_in_ms = this_time_in_ms;
 				const double this_time_in_megacycles = (end_cycles - start_cycles)/(1024.*1024.);
 				if(this_time_in_megacycles < best_time_in_megacycles) best_time_in_megacycles = this_time_in_megacycles;
-
+				
 				sum_sqr_x += this_time_in_ms*this_time_in_ms;
 				sum_x     += this_time_in_ms;
-
+				
 				if(max_niterations <= 10) {
 					printf("     %-35s  %0.2lf \n",allfunction_names[i], this_time_in_ms);
 				}
-
+				
+				if(best_time_in_ms < function_best_time_in_ms[i]) {
+					function_best_time_in_ms[i] = best_time_in_ms;
+				}
+				
+				if(best_time_in_megacycles < function_best_mcycles[i]) {
+					function_best_mcycles[i] = best_time_in_megacycles;
+				}
+				
 				const double mean_time  = sum_x/(iter+1.0);
 				const double sigma_time = sqrt(sum_sqr_x/(iter+1.0) - mean_time*mean_time);
 				//If the std.dev is small compared to typical runtime and
 				//the code has run for more than XXX milli-seconds, then break
 				if(sigma_time/mean_time < 0.05 && sum_x >= 300.0 && iter >= 10) {
+					if(mean_time < function_best_mean_time[i]) {
+						function_best_mean_time[i] = mean_time;
+						function_sigma_time[i] = sigma_time;
+						function_niterations[i] = iter + 1;
+					}
+					numdone = numdone_before_iter_loop + max_niterations;
 					break;
 				}
 			}
-			
-			const double mean_time = sum_x/actual_niterations;
-			const double sigma_time = sqrt(sum_sqr_x/actual_niterations - mean_time*mean_time);
-			const double gflops = (double) totflop/(1e-3*mean_time)/1e9;
-			printf(ANSI_COLOR_RED "# %-35s  %6.2lf +- %5.2lf " ANSI_COLOR_GREEN " (best -- %6.2lf ms, %6.2lf Mcycles) " ANSI_COLOR_RESET "," ANSI_COLOR_BLUE " >= %5.2lf GFlops [%04d iterations]" ANSI_COLOR_RESET "\n",
-						 allfunction_names[i], mean_time, sigma_time, best_time_in_ms, best_time_in_megacycles, gflops, actual_niterations);
-		}
+		}//i loop over ntests
+	}//irep loop over nrepeat
+	finish_myprogressbar(&interrupted);
+	
+	printf("##################################################\n");
+	printf("##  Function                            Time (ms) \n");
+	printf("##################################################\n");
+	for(int i=0;i<ntests;i++) {
+		const double mean_time = function_best_mean_time[i];
+		const double sigma_time = function_sigma_time[i];
+		const double gflops = (double) totflop/(1e-3*mean_time)/1e9;
+		const double best_time_in_ms = function_best_time_in_ms[i];
+		const double best_time_in_megacycles = function_best_mcycles[i];
+		const int actual_niterations = function_niterations[i];
+		printf(ANSI_COLOR_RED "# %-35s  %6.2lf +- %5.2lf " ANSI_COLOR_GREEN " (best -- %6.2lf ms, %6.2lf Mcycles) " ANSI_COLOR_RESET "," ANSI_COLOR_BLUE " %5.2lf GFlops [%04d iterations]" ANSI_COLOR_RESET "\n",
+					 allfunction_names[i], mean_time, sigma_time, best_time_in_ms, best_time_in_megacycles, gflops, actual_niterations);
+
 	}
-		
+
+	
 cleanup:
 	{
 		free((void *) x);free((void *) y);free((void *) dist);

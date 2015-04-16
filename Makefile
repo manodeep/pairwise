@@ -17,8 +17,8 @@ PAIRWISE_OBJ = $(PAIRWISE_SRC:.c=.o)
 
 all: $(target) $(PAIRWISE_3D_SRC) $(PAIRWISE_3D_ISPC_SRC) common.mk Makefile include/defs.h 
 
-pairwise_3d:  $(PAIRWISE_3D_ISPC_OBJ) $(PAIRWISE_3D_OBJS) include/defs.h utils.o
-	$(CC) $(PAIRWISE_3D_OBJS) $(PAIRWISE_3D_ISPC_OBJ) utils.o -o $@ $(CLINK)
+pairwise_3d:  $(PAIRWISE_3D_ISPC_OBJ) $(PAIRWISE_3D_OBJS) include/defs.h utils.o progressbar.o 
+	$(CC) $(PAIRWISE_3D_OBJS) $(PAIRWISE_3D_ISPC_OBJ) utils.o progressbar.o -o $@ $(CLINK)
 
 $(PAIRWISE_3D_ISPC_OBJ): $(PAIRWISE_3D_ISPC_SRC) common.mk Makefile include/defs.h 
 	ispc $(OPT) -O3 $(PAIRWISE_3D_ISPC_SRC)  -h $(PAIRWISE_3D_ISPC_HDR) --target=avx1-i64x4 -o $@
@@ -26,8 +26,8 @@ $(PAIRWISE_3D_ISPC_OBJ): $(PAIRWISE_3D_ISPC_SRC) common.mk Makefile include/defs
 $(PAIRWISE_3D_OBJS): $(PAIRWISE_3D_ISPC_OBJ) $(PAIRWISE_3D_SRC) common.mk Makefile
 	$(CC) $(OPT) $(INCLUDE) $(CFLAGS) -c $(PAIRWISE_3D_SRC) -o $@
 
-pairwise: $(PAIRWISE_OBJ) utils.o common.mk Makefile include/defs.h 
-	$(CC) $(PAIRWISE_OBJ) utils.o -o $@ $(CLINK) $(BLAS_LINK)
+pairwise: $(PAIRWISE_OBJ) utils.o common.mk Makefile include/defs.h progressbar.o 
+	$(CC) $(PAIRWISE_OBJ) utils.o progressbar.o -o $@ $(CLINK) $(BLAS_LINK)
 
 $(PAIRWISE_OBJ): $(PAIRWISE_SRC) common.mk Makefile include/defs.h
 	$(CC) $(OPT) $(INCLUDE) $(CFLAGS) $(BLAS_INCLUDE) -c $< -o $@ 
@@ -35,16 +35,19 @@ $(PAIRWISE_OBJ): $(PAIRWISE_SRC) common.mk Makefile include/defs.h
 $(PAIRWISE_3D_HISTOGRAM_OBJ): $(PAIRWISE_3D_HISTOGRAM_SRC) common.mk Makefile
 	$(CC) $(OPT) $(INCLUDE) $(CFLAGS) -c $< -o $@
 
-pairwise_3d_histogram: $(PAIRWISE_3D_HISTOGRAM_OBJ) utils.o include/defs.h 
-	$(CC) utils.o $< -o $@ $(CLINK)
+pairwise_3d_histogram: $(PAIRWISE_3D_HISTOGRAM_OBJ) utils.o include/defs.h progressbar.o 
+	$(CC) utils.o progressbar.o $< -o $@ $(CLINK)
 
 utils.o: utils/utils.c utils/utils.h
+	$(CC) $(INCLUDE) $(CFLAGS) -c $< -o $@
+
+progressbar.o: utils/progressbar.c utils/progressbar.h
 	$(CC) $(INCLUDE) $(CFLAGS) -c $< -o $@
 
 .PHONY: clean clena celan install lib tests distclean
 
 clean:
-	$(RM) $(target) $(PAIRWISE_3D_OBJS) $(PAIRWISE_3D_ISPC_OBJ) $(PAIRWISE_3D_ISPC_HDR) 
+	$(RM) $(target) $(PAIRWISE_3D_OBJS) $(PAIRWISE_3D_ISPC_OBJ) $(PAIRWISE_3D_ISPC_HDR) utils.o progressbar.o 
 
 clena: clean
 
