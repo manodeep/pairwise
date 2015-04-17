@@ -430,7 +430,7 @@ void avx_intrinsics_chunked_unroll(const double * restrict pos0, const double * 
 	const int block_size = 4;
 	const int unroll_factor=2;
 
-	assert(N >= NVEC*unroll_factor && "Number of elements present must be larger than the assumed size");
+	/* assert(N >= NVEC*unroll_factor && "Number of elements present must be larger than the assumed size"); */
 	
   double *x0 = (double *) pos0;
   double *y0 = (double *) &pos0[N];
@@ -477,7 +477,7 @@ void avx_intrinsics_chunked_unroll(const double * restrict pos0, const double * 
 							} \
 					} \
 			}
-
+#define DOCALC(n) GETVALUE(n);GETDIST(n);UPDATEHIST(n)
 	
 	for(int i=0;i<N;i++) {
 		const double xpos = *x0;
@@ -498,11 +498,11 @@ void avx_intrinsics_chunked_unroll(const double * restrict pos0, const double * 
 		const size_t bytes_offset = block_size*unroll_factor;
 		for(int j=0; j <=(N/block_size-unroll_factor);j+=unroll_factor) {
 
-			//Uncomment as necessary to reflect whatever value of unroll_factor you are using
-			GETVALUE(0);GETVALUE(1);//GETVALUE(2);GETVALUE(3);//GETVALUE(4);
-			GETDIST(0);GETDIST(1);//GETDIST(2);GETDIST(3);//GETDIST(4);
-			UPDATEHIST(0);UPDATEHIST(1);//UPDATEHIST(2);UPDATEHIST(3);//UPDATEHIST(4);
-
+			//Doing it this way is faster than calling DOCALC(n) n-1 times
+			GETVALUE(0);GETVALUE(1);
+			GETDIST(0);GETDIST(1);
+			UPDATEHIST(0);UPDATEHIST(1);
+			
 			x1 += bytes_offset;
 			y1 += bytes_offset;
 			z1 += bytes_offset;
@@ -529,12 +529,15 @@ void avx_intrinsics_chunked_unroll(const double * restrict pos0, const double * 
 #undef GETYVALUE
 #undef GETZVALUE
 #undef GETDIST
-
+#undef UPDATEHIST
+#undef DOCALC
+	
 	for(int i=0;i<nrpbin;i++) {
 		results_npairs[i] = npairs[i];
 	}
 	free(npairs);
 }
+
 #endif //AVX
 
 
@@ -616,7 +619,7 @@ void sse_intrinsics_chunked(const double * restrict pos0, const double * restric
 				SSE_FLOATS m_bin_mask = SSE_BITWISE_AND(m1,m_mask_left);
 				m_mask_left = SSE_COMPARE_FLOATS_LT(r2,m_rupp_sqr[kbin-1]);
 				int test2  = SSE_TEST_COMPARISON(m_bin_mask);
-				npairs[kbin] += AVX_BIT_COUNT_INT(test2);
+				npairs[kbin] += SSE_BIT_COUNT_INT(test2);
 				int test3 = SSE_TEST_COMPARISON(m_mask_left);
 				if(test3 == 0) {
 					break;
@@ -639,6 +642,117 @@ void sse_intrinsics_chunked(const double * restrict pos0, const double * restric
 		}
   }
 
+	for(int i=0;i<nrpbin;i++) {
+		results_npairs[i] = npairs[i];
+	}
+	free(npairs);
+}
+
+
+void sse_intrinsics_chunked_unroll(const double * restrict pos0, const double * restrict pos1, const int N, const int nrpbin, const double *rupp, int64_t *results_npairs)
+{
+	const int block_size = 2;
+	const int unroll_factor=4;
+
+	assert(N >= NVEC*unroll_factor && "Number of elements present must be larger than the assumed size");
+	
+  double *x0 = (double *) pos0;
+  double *y0 = (double *) &pos0[N];
+  double *z0 = (double *) &pos0[2*N];
+
+  int64_t *npairs = NULL;
+  size_t numbytes = sizeof(*npairs)*nrpbin;
+  const int test0 = posix_memalign((void **) &npairs, ALIGNMENT, numbytes);
+  assert(test0 == 0 && "memory allocation failed");
+  memset(npairs, 0, numbytes);
+	
+  DOUBLE rupp_sqr[nrpbin];
+  SSE_FLOATS m_rupp_sqr[nrpbin];
+  for(int i=0; i < nrpbin;i++) {
+		rupp_sqr[i] = rupp[i]*rupp[i];
+		m_rupp_sqr[i] = SSE_SET_FLOAT(rupp_sqr[i]);
+  }
+
+  const DOUBLE sqr_rpmax = rupp_sqr[nrpbin-1];
+  const DOUBLE sqr_rpmin = rupp_sqr[0];
+	const SSE_FLOATS m_sqr_rpmax = SSE_SET_FLOAT(sqr_rpmax);
+	const SSE_FLOATS m_sqr_rpmin = SSE_SET_FLOAT(sqr_rpmin);
+			
+#define GETXVALUE(n) const SSE_FLOATS diffx##n = SSE_SUBTRACT_FLOATS(SSE_LOAD_FLOATS_UNALIGNED(&x1[n*block_size]), m_xpos)
+#define GETYVALUE(n) const SSE_FLOATS diffy##n = SSE_SUBTRACT_FLOATS(SSE_LOAD_FLOATS_UNALIGNED(&y1[n*block_size]), m_ypos)
+#define GETZVALUE(n) const SSE_FLOATS diffz##n = SSE_SUBTRACT_FLOATS(SSE_LOAD_FLOATS_UNALIGNED(&z1[n*block_size]), m_zpos)
+#define GETVALUE(n)  GETXVALUE(n);GETYVALUE(n);GETZVALUE(n)
+
+#define GETDIST(n) SSE_FLOATS r2##n = SSE_ADD_FLOATS(SSE_SQUARE_FLOAT(diffx##n),SSE_ADD_FLOATS(SSE_SQUARE_FLOAT(diffy##n), SSE_SQUARE_FLOAT(diffz##n)))
+#define UPDATEHIST(n) const SSE_FLOATS m_rpmax_mask##n = SSE_COMPARE_FLOATS_LT(r2##n, m_sqr_rpmax); \
+	const SSE_FLOATS m_rpmin_mask##n = SSE_COMPARE_FLOATS_GE(r2##n, m_sqr_rpmin); \
+		SSE_FLOATS m_mask_left##n = SSE_BITWISE_AND(m_rpmax_mask##n,m_rpmin_mask##n); \
+			if(SSE_TEST_COMPARISON(m_mask_left##n) != 0) { \
+				r2##n = SSE_BLEND_FLOATS_WITH_MASK(m_sqr_rpmax, r2##n, m_mask_left##n); \
+					for(int kbin##n=nrpbin-1;kbin##n>=1;kbin##n--) {							\
+						const SSE_FLOATS m1 = SSE_COMPARE_FLOATS_GE(r2##n,m_rupp_sqr[kbin##n-1]); \
+						const SSE_FLOATS m_bin_mask = SSE_BITWISE_AND(m1,m_mask_left##n);	\
+						m_mask_left##n = SSE_COMPARE_FLOATS_LT(r2##n,m_rupp_sqr[kbin##n-1]); \
+							const int test2  = SSE_TEST_COMPARISON(m_bin_mask);				\
+							npairs[kbin##n] += SSE_BIT_COUNT_INT(test2);							\
+							const int test3 = SSE_TEST_COMPARISON(m_mask_left##n);		\
+							if(test3 == 0) {																					\
+								break;																									\
+							} \
+					} \
+			}
+#define DOCALC(n) GETVALUE(n);GETDIST(n);UPDATEHIST(n)
+
+	for(int i=0;i<N;i++) {
+		const double xpos = *x0;
+		const double ypos = *y0;
+		const double zpos = *z0;
+		
+		const SSE_FLOATS m_xpos = SSE_SET_FLOAT(xpos);
+		const SSE_FLOATS m_ypos = SSE_SET_FLOAT(ypos);
+		const SSE_FLOATS m_zpos = SSE_SET_FLOAT(zpos);
+
+		x0++;y0++;z0++;
+
+		double *x1 = (double *) pos1;
+		double *y1 = (double *) &pos1[N];
+		double *z1 = (double *) &pos1[2*N];
+
+		int offset = 0;
+		const size_t bytes_offset = block_size*unroll_factor;
+		for(int j=0; j <=(N/block_size-unroll_factor);j+=unroll_factor) {
+
+			DOCALC(0);DOCALC(1);DOCALC(2);DOCALC(3);
+			
+			x1 += bytes_offset;
+			y1 += bytes_offset;
+			z1 += bytes_offset;
+			offset += bytes_offset;
+		}
+
+		for(int jj=0;offset<N;jj++,offset++) {
+			const double dx = xpos - *x1;
+			const double dy = ypos - *y1;
+			const double dz = zpos - *z1;
+			const double r2 = dx*dx + dy*dy + dz*dz;
+			if(r2 >= sqr_rpmax || r2 < sqr_rpmin) continue;
+			for(int kbin=nrpbin-1;kbin>=1;kbin--){
+				if(r2 >= rupp_sqr[kbin-1]) {
+					npairs[kbin]++;
+					break;
+				}
+			}//searching for kbin loop
+			x1++;y1++;z1++;
+		}
+	}
+
+#undef GETXVALUE
+#undef GETYVALUE
+#undef GETZVALUE
+#undef GETDIST
+#undef UPDATEHIST
+#undef DOCALC
+	
 	for(int i=0;i<nrpbin;i++) {
 		results_npairs[i] = npairs[i];
 	}
@@ -669,7 +783,7 @@ int main(int argc, char **argv)
 																						,"avx_intrinsics_chunked","avx_intrinsics_chunked_unroll"
 #endif																						
 #ifdef __SSE4_2__
-																						,"sse_intrinsics_chunked"
+																						,"sse_intrinsics_chunked","sse_intrinsics_chunked_unroll"
 #endif
 	};
   const int ntests = sizeof(allfunction_names)/(sizeof(char)*MAXLEN);
@@ -679,7 +793,7 @@ int main(int argc, char **argv)
 			 ,avx_intrinsics_chunked,avx_intrinsics_chunked_unroll
 #endif			 
 #ifdef __SSE4_2__
-			 ,sse_intrinsics_chunked
+			 ,sse_intrinsics_chunked,sse_intrinsics_chunked_unroll
 #endif			 
 	};
   const double totflop = (double) numpart * (double) numpart * (8);

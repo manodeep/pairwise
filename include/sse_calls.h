@@ -5,6 +5,12 @@
 #include <nmmintrin.h>
 
 
+#if defined(__GNUC__) || defined(__GNUG__)
+#define SSE_BIT_COUNT_INT(X)                __builtin_popcount(X)
+#else
+#define SSE_BIT_COUNT_INT(X)                _popcnt32(X)
+#endif
+
 
 #ifndef DOUBLE_PREC
 
