@@ -430,8 +430,6 @@ void avx_intrinsics_chunked_unroll(const double * restrict pos0, const double * 
 	const int block_size = 4;
 	const int unroll_factor=2;
 
-	/* assert(N >= NVEC*unroll_factor && "Number of elements present must be larger than the assumed size"); */
-	
   double *x0 = (double *) pos0;
   double *y0 = (double *) &pos0[N];
   double *z0 = (double *) &pos0[2*N];
@@ -654,8 +652,6 @@ void sse_intrinsics_chunked_unroll(const double * restrict pos0, const double * 
 	const int block_size = 2;
 	const int unroll_factor=4;
 
-	assert(N >= NVEC*unroll_factor && "Number of elements present must be larger than the assumed size");
-	
   double *x0 = (double *) pos0;
   double *y0 = (double *) &pos0[N];
   double *z0 = (double *) &pos0[2*N];
