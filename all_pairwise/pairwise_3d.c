@@ -194,6 +194,7 @@ void compiler_vectorized_chunked(const double * restrict pos0, const double * re
 }
 
 
+#ifdef __AVX__
 void intrinsics_chunked(const double * restrict pos0, const double * restrict pos1, const int N, double * restrict d)
 {
 	const int block_size = 4;
@@ -344,8 +345,9 @@ void intrinsics_chunked_unroll(const double * restrict pos0, const double * rest
 #undef GETYVALUE
 #undef GETZVALUE
 #undef GETDIST
-	
 }
+#endif
+
 
 int main(int argc, char **argv)
 {
@@ -367,9 +369,17 @@ int main(int argc, char **argv)
 	int test2 = posix_memalign((void **) &dist, ALIGNMENT, sizeof(*dist)*totnpairs);
 	assert(test0 == 0  && test1 == 0 && test2 == 0 && "memory allocation failed");
 
-  const char allfunction_names[][MAXLEN] = {"naive","chunked","compiler_vectorized_chunked","intrinsics_chunked","intrinsics_chunked_unroll","pairwise_ispc"};
+  const char allfunction_names[][MAXLEN] = {"naive","chunked","compiler_vectorized_chunked",
+#ifdef __AVX__																						
+																						"intrinsics_chunked","intrinsics_chunked_unroll",
+#endif																						
+																						"pairwise_ispc"};
 	const int ntests = sizeof(allfunction_names)/(sizeof(char)*MAXLEN);
-	void (*allfunctions[]) (const double * restrict x, const double * restrict y, const int, double * restrict)      = {naive,chunked,compiler_vectorized_chunked,intrinsics_chunked,intrinsics_chunked_unroll,pairwise_ispc};
+	void (*allfunctions[]) (const double * restrict x, const double * restrict y, const int, double * restrict)      = {naive,chunked,compiler_vectorized_chunked,
+#ifdef __AVX__																																																											
+																																																											intrinsics_chunked,intrinsics_chunked_unroll,
+#endif																																																											
+																																																											pairwise_ispc};
 
 	double function_best_mean_time[ntests],function_sigma_time[ntests],function_best_time_in_ms[ntests],function_best_mcycles[ntests];
 	int function_niterations[ntests];

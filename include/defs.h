@@ -6,8 +6,13 @@
 #define MAXLEN    200
 #define NDIM      3
 
+
+#ifdef __AVX__
 #define DOUBLE_PREC
 #include "avx_calls.h"
+#else
+#include "function_precision.h"
+#endif
 
 static const int clustered_data = 1;
 static const char source_galaxy_file[] = "./data/Mr19_random_subsample_100000.txt";

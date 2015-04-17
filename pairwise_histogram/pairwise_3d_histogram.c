@@ -2,12 +2,6 @@
 
 #define __USE_XOPEN2K
 #include <stdlib.h>
-#if defined (__GNUC__) && ! defined (__INTEL_COMPILER)
-#include <x86intrin.h>
-#else
-#include <immintrin.h>
-#endif
-
 #include <sys/time.h>
 #include <assert.h>
 #include <stdint.h>
@@ -312,7 +306,7 @@ void compiler_vectorized_chunked(const double * restrict pos0, const double * re
 
 }
 
-
+#ifdef __AVX__
 void intrinsics_chunked(const double * restrict pos0, const double * restrict pos1, const int N, const int nrpbin, const double *rupp, int64_t *results_npairs)
 {
   double *x0 = (double *) pos0;
@@ -541,6 +535,9 @@ void intrinsics_chunked_unroll(const double * restrict pos0, const double * rest
 	}
 	free(npairs);
 }
+#endif //AVX
+
+
 
 int main(int argc, char **argv)
 {
@@ -559,10 +556,18 @@ int main(int argc, char **argv)
 
   assert(test0 == 0  && test1 == 0 &&  "memory allocation failed");
 
-  const char allfunction_names[][MAXLEN] = {"naive","chunked","compiler_vectorized_chunked","intrinsics_chunked","intrinsics_chunked_unroll"};
+  const char allfunction_names[][MAXLEN] = {"naive","chunked","compiler_vectorized_chunked"
+#ifdef __AVX__																						
+																						,"intrinsics_chunked","intrinsics_chunked_unroll"
+#endif																						
+	};
   const int ntests = sizeof(allfunction_names)/(sizeof(char)*MAXLEN);
   void (*allfunctions[]) (const double * restrict x, const double * restrict y, const int, const int nrpbin, const double *rupp, int64_t * npairs)
-		= {naive,chunked,compiler_vectorized_chunked,intrinsics_chunked,intrinsics_chunked_unroll};
+		= {naive,chunked,compiler_vectorized_chunked
+#ifdef __AVX__			 
+			 ,intrinsics_chunked,intrinsics_chunked_unroll
+#endif			 
+	};
   const double totflop = (double) numpart * (double) numpart * (8);
 
 	double function_best_mean_time[ntests],function_sigma_time[ntests],function_best_time_in_ms[ntests],function_best_mcycles[ntests];

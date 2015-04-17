@@ -1,11 +1,5 @@
 #include <stdio.h>
 #include <stdlib.h>
-#if defined (__GNUC__) && ! defined (__INTEL_COMPILER)
-#include <x86intrin.h>
-#else
-#include <immintrin.h>
-#endif
-
 #include <sys/time.h>
 #include <assert.h>
 #include <math.h>
