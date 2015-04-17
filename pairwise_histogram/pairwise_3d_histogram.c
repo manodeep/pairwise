@@ -307,7 +307,7 @@ void compiler_vectorized_chunked(const double * restrict pos0, const double * re
 }
 
 #ifdef __AVX__
-void intrinsics_chunked(const double * restrict pos0, const double * restrict pos1, const int N, const int nrpbin, const double *rupp, int64_t *results_npairs)
+void avx_intrinsics_chunked(const double * restrict pos0, const double * restrict pos1, const int N, const int nrpbin, const double *rupp, int64_t *results_npairs)
 {
   double *x0 = (double *) pos0;
   double *y0 = (double *) &pos0[N];
@@ -425,7 +425,7 @@ void intrinsics_chunked(const double * restrict pos0, const double * restrict po
 }
 
 
-void intrinsics_chunked_unroll(const double * restrict pos0, const double * restrict pos1, const int N, const int nrpbin, const double *rupp, int64_t *results_npairs)
+void avx_intrinsics_chunked_unroll(const double * restrict pos0, const double * restrict pos1, const int N, const int nrpbin, const double *rupp, int64_t *results_npairs)
 {
 	const int block_size = 4;
 	const int unroll_factor=2;
@@ -538,6 +538,114 @@ void intrinsics_chunked_unroll(const double * restrict pos0, const double * rest
 #endif //AVX
 
 
+#if defined (__SSE4_2__)
+void sse_intrinsics_chunked(const double * restrict pos0, const double * restrict pos1, const int N, const int nrpbin, const double *rupp, int64_t *results_npairs)
+{
+  double *x0 = (double *) pos0;
+  double *y0 = (double *) &pos0[N];
+  double *z0 = (double *) &pos0[2*N];
+
+  int64_t *npairs = NULL;
+  size_t numbytes = sizeof(*npairs)*nrpbin;
+  const int test0 = posix_memalign((void **) &npairs, ALIGNMENT, numbytes);
+  assert(test0 == 0 && "memory allocation failed");
+  memset(npairs, 0, numbytes);
+	
+  DOUBLE rupp_sqr[nrpbin];
+  SSE_FLOATS m_rupp_sqr[nrpbin];
+  for(int i=0; i < nrpbin;i++) {
+		rupp_sqr[i] = rupp[i]*rupp[i];
+		m_rupp_sqr[i] = SSE_SET_FLOAT(rupp_sqr[i]);
+  }
+
+  const DOUBLE sqr_rpmax = rupp_sqr[nrpbin-1];
+  const DOUBLE sqr_rpmin = rupp_sqr[0];
+	
+	
+  for(int i=0;i<N;i++) {
+		const double xpos = *x0;
+		const double ypos = *y0;
+		const double zpos = *z0;
+		
+		const SSE_FLOATS m_xpos = SSE_SET_FLOAT(xpos);
+		const SSE_FLOATS m_ypos = SSE_SET_FLOAT(ypos);
+		const SSE_FLOATS m_zpos = SSE_SET_FLOAT(zpos);
+
+		x0++;y0++;z0++;
+
+		double *x1 = (double *) pos1;
+		double *y1 = (double *) &pos1[N];
+		double *z1 = (double *) &pos1[2*N];
+
+		int j;		
+		for(j=0;j<=(N-SSE_NVEC);j+=SSE_NVEC){
+			const SSE_FLOATS m_x1 = SSE_LOAD_FLOATS_UNALIGNED(x1);
+			const SSE_FLOATS m_y1 = SSE_LOAD_FLOATS_UNALIGNED(y1);
+			const SSE_FLOATS m_z1 = SSE_LOAD_FLOATS_UNALIGNED(z1);
+			//set constant := sqr_rpmax
+			const SSE_FLOATS m_sqr_rpmax = SSE_SET_FLOAT(sqr_rpmax);
+			//set constant := sqr_rpmin
+			const SSE_FLOATS m_sqr_rpmin = SSE_SET_FLOAT(sqr_rpmin);
+			
+			x1 += SSE_NVEC;
+			y1 += SSE_NVEC;
+			z1 += SSE_NVEC;
+
+			const SSE_FLOATS m_dx = SSE_SUBTRACT_FLOATS(m_x1, m_xpos);
+			const SSE_FLOATS m_dy = SSE_SUBTRACT_FLOATS(m_y1, m_ypos);
+			const SSE_FLOATS m_dz = SSE_SUBTRACT_FLOATS(m_z1, m_zpos);
+			SSE_FLOATS r2 = SSE_ADD_FLOATS(SSE_SQUARE_FLOAT(m_dx), SSE_ADD_FLOATS(SSE_SQUARE_FLOAT(m_dy),SSE_SQUARE_FLOAT(m_dz)));
+			SSE_FLOATS m_mask_left;
+
+			{
+				m_mask_left = SSE_COMPARE_FLOATS_LT(r2,m_sqr_rpmax);
+				if(SSE_TEST_COMPARISON(m_mask_left) == 0) {
+					continue;
+				}
+
+				SSE_FLOATS m_mask = SSE_BITWISE_AND(m_mask_left, SSE_COMPARE_FLOATS_GE(r2, m_sqr_rpmin));
+				if(SSE_TEST_COMPARISON(m_mask) == 0) {
+					continue;
+				}
+				r2 = SSE_BLEND_FLOATS_WITH_MASK(m_sqr_rpmax, r2, m_mask);
+				m_mask_left = SSE_COMPARE_FLOATS_LT(r2,m_sqr_rpmax);
+			}
+
+			for(int kbin=nrpbin-1;kbin>=1;kbin--) {
+				SSE_FLOATS m1 = SSE_COMPARE_FLOATS_GE(r2,m_rupp_sqr[kbin-1]);
+				SSE_FLOATS m_bin_mask = SSE_BITWISE_AND(m1,m_mask_left);
+				m_mask_left = SSE_COMPARE_FLOATS_LT(r2,m_rupp_sqr[kbin-1]);
+				int test2  = SSE_TEST_COMPARISON(m_bin_mask);
+				npairs[kbin] += AVX_BIT_COUNT_INT(test2);
+				int test3 = SSE_TEST_COMPARISON(m_mask_left);
+				if(test3 == 0) {
+					break;
+				}
+			}
+		}			
+
+		for(int jj=0;j<N;jj++,j++) {
+			const double dx = xpos - x1[jj];
+			const double dy = ypos - y1[jj];
+			const double dz = zpos - z1[jj];
+			const double r2 = dx*dx + dy*dy + dz*dz;
+			if(r2 >= sqr_rpmax || r2 < sqr_rpmin) continue;
+			for(int kbin=nrpbin-1;kbin>=1;kbin--){
+				if(r2 >= rupp_sqr[kbin-1]) {
+					npairs[kbin]++;
+					break;
+				}
+			}//searching for kbin loop
+		}
+  }
+
+	for(int i=0;i<nrpbin;i++) {
+		results_npairs[i] = npairs[i];
+	}
+	free(npairs);
+}
+#endif //sse 4.2
+
 
 int main(int argc, char **argv)
 {
@@ -558,14 +666,20 @@ int main(int argc, char **argv)
 
   const char allfunction_names[][MAXLEN] = {"naive","chunked","compiler_vectorized_chunked"
 #ifdef __AVX__																						
-																						,"intrinsics_chunked","intrinsics_chunked_unroll"
+																						,"avx_intrinsics_chunked","avx_intrinsics_chunked_unroll"
 #endif																						
+#ifdef __SSE4_2__
+																						,"sse_intrinsics_chunked"
+#endif
 	};
   const int ntests = sizeof(allfunction_names)/(sizeof(char)*MAXLEN);
   void (*allfunctions[]) (const double * restrict x, const double * restrict y, const int, const int nrpbin, const double *rupp, int64_t * npairs)
 		= {naive,chunked,compiler_vectorized_chunked
 #ifdef __AVX__			 
-			 ,intrinsics_chunked,intrinsics_chunked_unroll
+			 ,avx_intrinsics_chunked,avx_intrinsics_chunked_unroll
+#endif			 
+#ifdef __SSE4_2__
+			 ,sse_intrinsics_chunked
 #endif			 
 	};
   const double totflop = (double) numpart * (double) numpart * (8);

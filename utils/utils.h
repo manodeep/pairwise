@@ -19,7 +19,7 @@
 #include<time.h>
 #include<sys/time.h>
 #include<stdarg.h>
-
+#include<unistd.h>
 
 #ifdef __cplusplus
 extern "C" {
