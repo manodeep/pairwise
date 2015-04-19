@@ -108,12 +108,11 @@ int check_result(const int64_t *npairs, const int64_t *npairs_reference, const i
 }
 
 
-void naive(const double * restrict pos0, const double * restrict pos1, const int N, const int nrpbin, const double *rupp, int64_t *results_npairs)
+void naive(const double * restrict x0, const double * restrict y0, const double * restrict z0,
+					 const double * restrict x1, const double * restrict y1, const double * restrict z1,
+					 const int N0, const int N1,
+					 const int nrpbin, const double *rupp, int64_t *results_npairs)
 {
-  const double *x0  __attribute__((aligned(ALIGNMENT))) = (const double *) pos0;
-  const double *y0  __attribute__((aligned(ALIGNMENT))) = (const double *) &pos0[N];
-  const double *z0  __attribute__((aligned(ALIGNMENT))) = (const double *) &pos0[2*N];
-
   int64_t *npairs = NULL;
   size_t numbytes = sizeof(*npairs)*nrpbin;
   const int test0 = posix_memalign((void **) &npairs, ALIGNMENT, numbytes);
@@ -128,15 +127,12 @@ void naive(const double * restrict pos0, const double * restrict pos1, const int
 	const DOUBLE sqr_rpmin = rupp_sqr[0];
 	const DOUBLE sqr_rpmax = rupp_sqr[nrpbin-1];
 	
-  for(int i=0;i<N;i++) {
+  for(int i=0;i<N0;i++) {
 		const double xpos  __attribute__((aligned(ALIGNMENT))) = x0[i];
 		const double ypos  __attribute__((aligned(ALIGNMENT))) = y0[i];
 		const double zpos  __attribute__((aligned(ALIGNMENT))) = z0[i];
-		const double *x1  __attribute__((aligned(ALIGNMENT))) = (const double *) pos1;
-		const double *y1  __attribute__((aligned(ALIGNMENT))) = (const double *) &pos1[N];
-		const double *z1  __attribute__((aligned(ALIGNMENT))) = (const double *) &pos1[2*N];
 
-		for(int j=0;j<N;j++) {
+		for(int j=0;j<N1;j++) {
 			const double dx = xpos - x1[j];
 			const double dy = ypos - y1[j];
 			const double dz = zpos - z1[j];
@@ -158,12 +154,12 @@ void naive(const double * restrict pos0, const double * restrict pos1, const int
 	free(npairs);
 }
 
-void chunked(const double * restrict pos0, const double * restrict pos1, const int N, const int nrpbin, const double *rupp, int64_t *results_npairs)
+void chunked(const double * restrict x0, const double * restrict y0, const double * restrict z0,
+						 const double * restrict x1, const double * restrict y1, const double * restrict z1,
+						 const int N0, const int N1,
+						 const int nrpbin, const double *rupp, int64_t *results_npairs)
 {
   const int block_size = 64;
-  const double *x0 = (const double *) pos0;
-  const double *y0 = (const double *) &pos0[N];
-  const double *z0 = (const double *) &pos0[2*N];
 
   int64_t *npairs = NULL;
   size_t numbytes = sizeof(*npairs)*nrpbin;
@@ -178,13 +174,10 @@ void chunked(const double * restrict pos0, const double * restrict pos1, const i
 	const DOUBLE sqr_rpmin = rupp_sqr[0];
 	const DOUBLE sqr_rpmax = rupp_sqr[nrpbin-1];
 	
-  for(int i=0;i<N;i+=block_size) {
-		const int block_size1 = (N-i) > block_size ? block_size:(N-i);
-		for(int j=0;j<N;j+=block_size) {
-			const int block_size2 = (N-j) > block_size ? block_size:(N-j);
-			const double *x1 = (const double *) &pos1[j];
-			const double *y1 = (const double *) &pos1[N + j];
-			const double *z1 = (const double *) &pos1[2*N + j];
+  for(int i=0;i<N0;i+=block_size) {
+		const int block_size1 = (N0-i) > block_size ? block_size:(N0-i);
+		for(int j=0;j<N1;j+=block_size) {
+			const int block_size2 = (N1-j) > block_size ? block_size:(N1-j);
 			for(int ii=0;ii<block_size1;ii++) {
 				double dist[block_size2];
 				const double xpos = x0[i+ii];
@@ -195,11 +188,10 @@ void chunked(const double * restrict pos0, const double * restrict pos1, const i
 #pragma simd assert
 #endif				
 				for(int jj=0;jj<block_size2;jj++) {
-					const double dx = xpos - x1[jj];
-					const double dy = ypos - y1[jj];
-					const double dz = zpos - z1[jj];
-					const double sqr_ds = dx*dx + dy*dy + dz*dz;
-					dist[jj] = sqr_ds;
+					const double dx = xpos - x1[j+jj];
+					const double dy = ypos - y1[j+jj];
+					const double dz = zpos - z1[j+jj];
+					dist[jj] = dx*dx + dy*dy + dz*dz;
 				}
 
 				for(int jj=0;jj<block_size2;jj++) {
@@ -224,13 +216,12 @@ void chunked(const double * restrict pos0, const double * restrict pos1, const i
 }
 
 
-void compiler_vectorized_chunked(const double * restrict pos0, const double * restrict pos1, const int N, const int nrpbin, const double *rupp, int64_t *results_npairs)
+void compiler_vectorized_chunked(const double * restrict x0, const double * restrict y0, const double * restrict z0,
+																 const double * restrict x1, const double * restrict y1, const double * restrict z1,
+																 const int N0, const int N1,
+																 const int nrpbin, const double *rupp, int64_t *results_npairs)
 {
   const int block_size = 4;
-  const double *x0 = (const double *) pos0;
-  const double *y0 = (const double *) &pos0[N];
-  const double *z0 = (const double *) &pos0[2*N];
-
   int64_t *npairs = NULL;
   size_t numbytes = sizeof(*npairs)*nrpbin;
   const int test0 = posix_memalign((void **) &npairs, ALIGNMENT, numbytes);
@@ -245,26 +236,25 @@ void compiler_vectorized_chunked(const double * restrict pos0, const double * re
 	const DOUBLE sqr_rpmin = rupp_sqr[0];
 	const DOUBLE sqr_rpmax = rupp_sqr[nrpbin-1];
 	
-  for(int i=0;i<N;i++) {
+  for(int i=0;i<N0;i++) {
 		int j;
 		const double xpos = x0[i];
 		const double ypos = y0[i];
 		const double zpos = z0[i];
 
-		double *x1 = (double *) pos1;
-		double *y1 = (double *) &pos1[N];
-		double *z1 = (double *) &pos1[2*N];
-
-
-		for(j=0;j<=(N-block_size);j+=block_size){
+		double *localx1 = (double *) x1;
+		double *localy1 = (double *) y1;
+		double *localz1 = (double *) z1;
+		
+		for(j=0;j<=(N1-block_size);j+=block_size){
 			double dist[block_size];
 #ifdef __INTEL_COMPILER			
 #pragma simd assert
 #endif
 			for(int jj=0;jj<block_size;jj++) {
-				const double dx = xpos - x1[jj];
-				const double dy = ypos - y1[jj];
-				const double dz = zpos - z1[jj];
+				const double dx = xpos - localx1[jj];
+				const double dy = ypos - localy1[jj];
+				const double dz = zpos - localz1[jj];
 				dist[jj] = dx*dx + dy*dy + dz*dz;
 			}
 
@@ -279,15 +269,15 @@ void compiler_vectorized_chunked(const double * restrict pos0, const double * re
 				}//searching for kbin loop
 			}
 			
-			x1 += block_size;
-			y1 += block_size;
-			z1 += block_size;
-			
+			localx1 += block_size;
+			localy1 += block_size;
+			localz1 += block_size;
 		}			
-		for(int jj=0;j<N;jj++,j++) {
-			const double dx = xpos - x1[jj];
-			const double dy = ypos - y1[jj];
-			const double dz = zpos - z1[jj];
+		for(int jj=0;j<N1;jj++,j++) {
+			const double dx = xpos - localx1[jj];
+			const double dy = ypos - localy1[jj];
+			const double dz = zpos - localz1[jj];
+			
 			const double r2 = dx*dx + dy*dy + dz*dz;
 			if(r2 >= sqr_rpmax || r2 < sqr_rpmin) continue;
 			for(int kbin=nrpbin-1;kbin>=1;kbin--){
@@ -307,12 +297,11 @@ void compiler_vectorized_chunked(const double * restrict pos0, const double * re
 }
 
 #ifdef __AVX__
-void avx_intrinsics_chunked(const double * restrict pos0, const double * restrict pos1, const int N, const int nrpbin, const double *rupp, int64_t *results_npairs)
+void avx_intrinsics_chunked(const double * restrict x0, const double * restrict y0, const double * restrict z0,
+														const double * restrict x1, const double * restrict y1, const double * restrict z1,
+														const int N0, const int N1,
+														const int nrpbin, const double *rupp, int64_t *results_npairs)
 {
-  double *x0 = (double *) pos0;
-  double *y0 = (double *) &pos0[N];
-  double *z0 = (double *) &pos0[2*N];
-
   int64_t *npairs = NULL;
   size_t numbytes = sizeof(*npairs)*nrpbin;
   const int test0 = posix_memalign((void **) &npairs, ALIGNMENT, numbytes);
@@ -330,34 +319,32 @@ void avx_intrinsics_chunked(const double * restrict pos0, const double * restric
   const DOUBLE sqr_rpmin = rupp_sqr[0];
 	
 	
-  for(int i=0;i<N;i++) {
-		const double xpos = *x0;
-		const double ypos = *y0;
-		const double zpos = *z0;
+  for(int i=0;i<N0;i++) {
+		const double xpos = x0[i];
+		const double ypos = y0[i];
+		const double zpos = z0[i];
 		
 		const AVX_FLOATS m_xpos = AVX_SET_FLOAT(xpos);
 		const AVX_FLOATS m_ypos = AVX_SET_FLOAT(ypos);
 		const AVX_FLOATS m_zpos = AVX_SET_FLOAT(zpos);
 
-		x0++;y0++;z0++;
-
-		double *x1 = (double *) pos1;
-		double *y1 = (double *) &pos1[N];
-		double *z1 = (double *) &pos1[2*N];
+		double *localx1 = (double *) x1;
+		double *localy1 = (double *) y1;
+		double *localz1 = (double *) z1;
 
 		int j;		
-		for(j=0;j<=(N-NVEC);j+=NVEC){
-			const AVX_FLOATS m_x1 = AVX_LOAD_FLOATS_UNALIGNED(x1);
-			const AVX_FLOATS m_y1 = AVX_LOAD_FLOATS_UNALIGNED(y1);
-			const AVX_FLOATS m_z1 = AVX_LOAD_FLOATS_UNALIGNED(z1);
+		for(j=0;j<=(N1-NVEC);j+=NVEC){
+			const AVX_FLOATS m_x1 = AVX_LOAD_FLOATS_UNALIGNED(localx1);
+			const AVX_FLOATS m_y1 = AVX_LOAD_FLOATS_UNALIGNED(localy1);
+			const AVX_FLOATS m_z1 = AVX_LOAD_FLOATS_UNALIGNED(localz1);
 			//set constant := sqr_rpmax
 			const AVX_FLOATS m_sqr_rpmax = AVX_SET_FLOAT(sqr_rpmax);
 			//set constant := sqr_rpmin
 			const AVX_FLOATS m_sqr_rpmin = AVX_SET_FLOAT(sqr_rpmin);
 			
-			x1 += NVEC;
-			y1 += NVEC;
-			z1 += NVEC;
+			localx1 += NVEC;
+			localy1 += NVEC;
+			localz1 += NVEC;
 
 			const AVX_FLOATS m_dx = AVX_SUBTRACT_FLOATS(m_x1, m_xpos);
 			const AVX_FLOATS m_dy = AVX_SUBTRACT_FLOATS(m_y1, m_ypos);
@@ -403,20 +390,20 @@ void avx_intrinsics_chunked(const double * restrict pos0, const double * restric
 			}
 		}			
 
-		for(int jj=0;j<N;jj++,j++) {
-		  const double dx = xpos - x1[jj];
-		  const double dy = ypos - y1[jj];
-		  const double dz = zpos - z1[jj];
+		for(int jj=0;j<N1;jj++,j++) {
+		  const double dx = xpos - localx1[jj];
+		  const double dy = ypos - localy1[jj];
+		  const double dz = zpos - localz1[jj];
 		  const double r2 = dx*dx + dy*dy + dz*dz;
 		  if(r2 >= sqr_rpmax || r2 < sqr_rpmin) continue;
 		  for(int kbin=nrpbin-1;kbin>=1;kbin--){
-			if(r2 >= rupp_sqr[kbin-1]) {
-			  npairs[kbin]++;
-			  break;
-			}
+				if(r2 >= rupp_sqr[kbin-1]) {
+					npairs[kbin]++;
+					break;
+				}
 		  }//searching for kbin loop
 		}
-  }
+	}
 
 	for(int i=0;i<nrpbin;i++) {
 		results_npairs[i] += npairs[i];
@@ -425,15 +412,13 @@ void avx_intrinsics_chunked(const double * restrict pos0, const double * restric
 }
 
 
-void avx_intrinsics_chunked_unroll(const double * restrict pos0, const double * restrict pos1, const int N, const int nrpbin, const double *rupp, int64_t *results_npairs)
+void avx_intrinsics_chunked_unroll(const double * restrict x0, const double * restrict y0, const double * restrict z0,
+																	 const double * restrict x1, const double * restrict y1, const double * restrict z1,
+																	 const int N0, const int N1,
+																	 const int nrpbin, const double *rupp, int64_t *results_npairs)
 {
 	const int block_size = 4;
 	const int unroll_factor=2;
-
-  double *x0 = (double *) pos0;
-  double *y0 = (double *) &pos0[N];
-  double *z0 = (double *) &pos0[2*N];
-
   int64_t *npairs = NULL;
   size_t numbytes = sizeof(*npairs)*nrpbin;
   const int test0 = posix_memalign((void **) &npairs, ALIGNMENT, numbytes);
@@ -452,9 +437,9 @@ void avx_intrinsics_chunked_unroll(const double * restrict pos0, const double * 
 	const AVX_FLOATS m_sqr_rpmax = AVX_SET_FLOAT(sqr_rpmax);
 	const AVX_FLOATS m_sqr_rpmin = AVX_SET_FLOAT(sqr_rpmin);
 			
-#define GETXVALUE(n) const AVX_FLOATS diffx##n = AVX_SUBTRACT_FLOATS(AVX_LOAD_FLOATS_UNALIGNED(&x1[n*block_size]), m_xpos)
-#define GETYVALUE(n) const AVX_FLOATS diffy##n = AVX_SUBTRACT_FLOATS(AVX_LOAD_FLOATS_UNALIGNED(&y1[n*block_size]), m_ypos)
-#define GETZVALUE(n) const AVX_FLOATS diffz##n = AVX_SUBTRACT_FLOATS(AVX_LOAD_FLOATS_UNALIGNED(&z1[n*block_size]), m_zpos)
+#define GETXVALUE(n) const AVX_FLOATS diffx##n = AVX_SUBTRACT_FLOATS(AVX_LOAD_FLOATS_UNALIGNED(&localx1[n*block_size]), m_xpos)
+#define GETYVALUE(n) const AVX_FLOATS diffy##n = AVX_SUBTRACT_FLOATS(AVX_LOAD_FLOATS_UNALIGNED(&localy1[n*block_size]), m_ypos)
+#define GETZVALUE(n) const AVX_FLOATS diffz##n = AVX_SUBTRACT_FLOATS(AVX_LOAD_FLOATS_UNALIGNED(&localz1[n*block_size]), m_zpos)
 #define GETVALUE(n)  GETXVALUE(n);GETYVALUE(n);GETZVALUE(n)
 
 #define GETDIST(n) AVX_FLOATS r2##n = AVX_ADD_FLOATS(AVX_SQUARE_FLOAT(diffx##n),AVX_ADD_FLOATS(AVX_SQUARE_FLOAT(diffy##n), AVX_SQUARE_FLOAT(diffz##n)))
@@ -477,40 +462,38 @@ void avx_intrinsics_chunked_unroll(const double * restrict pos0, const double * 
 			}
 #define DOCALC(n) GETVALUE(n);GETDIST(n);UPDATEHIST(n)
 	
-	for(int i=0;i<N;i++) {
-		const double xpos = *x0;
-		const double ypos = *y0;
-		const double zpos = *z0;
+	for(int i=0;i<N0;i++) {
+		const double xpos = x0[i];
+		const double ypos = y0[i];
+		const double zpos = z0[i];
 		
 		const AVX_FLOATS m_xpos = AVX_SET_FLOAT(xpos);
 		const AVX_FLOATS m_ypos = AVX_SET_FLOAT(ypos);
 		const AVX_FLOATS m_zpos = AVX_SET_FLOAT(zpos);
 
-		x0++;y0++;z0++;
-
-		double *x1 = (double *) pos1;
-		double *y1 = (double *) &pos1[N];
-		double *z1 = (double *) &pos1[2*N];
+		double *localx1 = (double *) x1;
+		double *localy1 = (double *) y1;
+		double *localz1 = (double *) z1;
 
 		int offset = 0;
 		const size_t bytes_offset = block_size*unroll_factor;
-		for(int j=0; j <=(N/block_size-unroll_factor);j+=unroll_factor) {
+		for(int j=0; j <=(N1/block_size-unroll_factor);j+=unroll_factor) {
 
 			//Doing it this way is faster than calling DOCALC(n) n-1 times
 			GETVALUE(0);GETVALUE(1);
 			GETDIST(0);GETDIST(1);
 			UPDATEHIST(0);UPDATEHIST(1);
 			
-			x1 += bytes_offset;
-			y1 += bytes_offset;
-			z1 += bytes_offset;
+			localx1 += bytes_offset;
+			localy1 += bytes_offset;
+			localz1 += bytes_offset;
 			offset += bytes_offset;
 		}
 
-		for(int jj=0;offset<N;jj++,offset++) {
-			const double dx = xpos - *x1;
-			const double dy = ypos - *y1;
-			const double dz = zpos - *z1;
+		for(int jj=0;offset<N1;jj++,offset++) {
+			const double dx = xpos - *localx1;
+			const double dy = ypos - *localy1;
+			const double dz = zpos - *localz1;
 			const double r2 = dx*dx + dy*dy + dz*dz;
 			if(r2 >= sqr_rpmax || r2 < sqr_rpmin) continue;
 			for(int kbin=nrpbin-1;kbin>=1;kbin--){
@@ -519,7 +502,7 @@ void avx_intrinsics_chunked_unroll(const double * restrict pos0, const double * 
 					break;
 				}
 			}//searching for kbin loop
-			x1++;y1++;z1++;
+			localx1++;localy1++;localz1++;
 		}
 	}
 
@@ -540,12 +523,11 @@ void avx_intrinsics_chunked_unroll(const double * restrict pos0, const double * 
 
 
 #if defined (__SSE4_2__)
-void sse_intrinsics_chunked(const double * restrict pos0, const double * restrict pos1, const int N, const int nrpbin, const double *rupp, int64_t *results_npairs)
+void sse_intrinsics_chunked(const double * restrict x0, const double * restrict y0, const double * restrict z0,
+														const double * restrict x1, const double * restrict y1, const double * restrict z1,
+														const int N0, const int N1,
+														const int nrpbin, const double *rupp, int64_t *results_npairs)
 {
-  double *x0 = (double *) pos0;
-  double *y0 = (double *) &pos0[N];
-  double *z0 = (double *) &pos0[2*N];
-
   int64_t *npairs = NULL;
   size_t numbytes = sizeof(*npairs)*nrpbin;
   const int test0 = posix_memalign((void **) &npairs, ALIGNMENT, numbytes);
@@ -563,34 +545,32 @@ void sse_intrinsics_chunked(const double * restrict pos0, const double * restric
   const DOUBLE sqr_rpmin = rupp_sqr[0];
 	
 	
-  for(int i=0;i<N;i++) {
-		const double xpos = *x0;
-		const double ypos = *y0;
-		const double zpos = *z0;
+  for(int i=0;i<N0;i++) {
+		const double xpos = x0[i];
+		const double ypos = y0[i];
+		const double zpos = z0[i];
 		
 		const SSE_FLOATS m_xpos = SSE_SET_FLOAT(xpos);
 		const SSE_FLOATS m_ypos = SSE_SET_FLOAT(ypos);
 		const SSE_FLOATS m_zpos = SSE_SET_FLOAT(zpos);
 
-		x0++;y0++;z0++;
-
-		double *x1 = (double *) pos1;
-		double *y1 = (double *) &pos1[N];
-		double *z1 = (double *) &pos1[2*N];
+		double *localx1 = (double *) x1;
+		double *localy1 = (double *) y1;
+		double *localz1 = (double *) z1;
 
 		int j;		
-		for(j=0;j<=(N-SSE_NVEC);j+=SSE_NVEC){
-			const SSE_FLOATS m_x1 = SSE_LOAD_FLOATS_UNALIGNED(x1);
-			const SSE_FLOATS m_y1 = SSE_LOAD_FLOATS_UNALIGNED(y1);
-			const SSE_FLOATS m_z1 = SSE_LOAD_FLOATS_UNALIGNED(z1);
+		for(j=0;j<=(N1-SSE_NVEC);j+=SSE_NVEC){
+			const SSE_FLOATS m_x1 = SSE_LOAD_FLOATS_UNALIGNED(localx1);
+			const SSE_FLOATS m_y1 = SSE_LOAD_FLOATS_UNALIGNED(localy1);
+			const SSE_FLOATS m_z1 = SSE_LOAD_FLOATS_UNALIGNED(localz1);
 			//set constant := sqr_rpmax
 			const SSE_FLOATS m_sqr_rpmax = SSE_SET_FLOAT(sqr_rpmax);
 			//set constant := sqr_rpmin
 			const SSE_FLOATS m_sqr_rpmin = SSE_SET_FLOAT(sqr_rpmin);
 			
-			x1 += SSE_NVEC;
-			y1 += SSE_NVEC;
-			z1 += SSE_NVEC;
+			localx1 += SSE_NVEC;
+			localy1 += SSE_NVEC;
+			localz1 += SSE_NVEC;
 
 			const SSE_FLOATS m_dx = SSE_SUBTRACT_FLOATS(m_x1, m_xpos);
 			const SSE_FLOATS m_dy = SSE_SUBTRACT_FLOATS(m_y1, m_ypos);
@@ -625,10 +605,10 @@ void sse_intrinsics_chunked(const double * restrict pos0, const double * restric
 			}
 		}			
 
-		for(int jj=0;j<N;jj++,j++) {
-			const double dx = xpos - x1[jj];
-			const double dy = ypos - y1[jj];
-			const double dz = zpos - z1[jj];
+		for(int jj=0;j<N1;jj++,j++) {
+			const double dx = xpos - localx1[jj];
+			const double dy = ypos - localy1[jj];
+			const double dz = zpos - localz1[jj];
 			const double r2 = dx*dx + dy*dy + dz*dz;
 			if(r2 >= sqr_rpmax || r2 < sqr_rpmin) continue;
 			for(int kbin=nrpbin-1;kbin>=1;kbin--){
@@ -647,15 +627,13 @@ void sse_intrinsics_chunked(const double * restrict pos0, const double * restric
 }
 
 
-void sse_intrinsics_chunked_unroll(const double * restrict pos0, const double * restrict pos1, const int N, const int nrpbin, const double *rupp, int64_t *results_npairs)
+void sse_intrinsics_chunked_unroll(const double * restrict x0, const double * restrict y0, const double * restrict z0,
+																	 const double * restrict x1, const double * restrict y1, const double * restrict z1,
+																	 const int N0, const int N1,
+																	 const int nrpbin, const double *rupp, int64_t *results_npairs)
 {
 	const int block_size = 2;
 	const int unroll_factor=4;
-
-  double *x0 = (double *) pos0;
-  double *y0 = (double *) &pos0[N];
-  double *z0 = (double *) &pos0[2*N];
-
   int64_t *npairs = NULL;
   size_t numbytes = sizeof(*npairs)*nrpbin;
   const int test0 = posix_memalign((void **) &npairs, ALIGNMENT, numbytes);
@@ -674,9 +652,9 @@ void sse_intrinsics_chunked_unroll(const double * restrict pos0, const double * 
 	const SSE_FLOATS m_sqr_rpmax = SSE_SET_FLOAT(sqr_rpmax);
 	const SSE_FLOATS m_sqr_rpmin = SSE_SET_FLOAT(sqr_rpmin);
 			
-#define GETXVALUE(n) const SSE_FLOATS diffx##n = SSE_SUBTRACT_FLOATS(SSE_LOAD_FLOATS_UNALIGNED(&x1[n*block_size]), m_xpos)
-#define GETYVALUE(n) const SSE_FLOATS diffy##n = SSE_SUBTRACT_FLOATS(SSE_LOAD_FLOATS_UNALIGNED(&y1[n*block_size]), m_ypos)
-#define GETZVALUE(n) const SSE_FLOATS diffz##n = SSE_SUBTRACT_FLOATS(SSE_LOAD_FLOATS_UNALIGNED(&z1[n*block_size]), m_zpos)
+#define GETXVALUE(n) const SSE_FLOATS diffx##n = SSE_SUBTRACT_FLOATS(SSE_LOAD_FLOATS_UNALIGNED(&localx1[n*block_size]), m_xpos)
+#define GETYVALUE(n) const SSE_FLOATS diffy##n = SSE_SUBTRACT_FLOATS(SSE_LOAD_FLOATS_UNALIGNED(&localy1[n*block_size]), m_ypos)
+#define GETZVALUE(n) const SSE_FLOATS diffz##n = SSE_SUBTRACT_FLOATS(SSE_LOAD_FLOATS_UNALIGNED(&localz1[n*block_size]), m_zpos)
 #define GETVALUE(n)  GETXVALUE(n);GETYVALUE(n);GETZVALUE(n)
 
 #define GETDIST(n) SSE_FLOATS r2##n = SSE_ADD_FLOATS(SSE_SQUARE_FLOAT(diffx##n),SSE_ADD_FLOATS(SSE_SQUARE_FLOAT(diffy##n), SSE_SQUARE_FLOAT(diffz##n)))
@@ -699,37 +677,35 @@ void sse_intrinsics_chunked_unroll(const double * restrict pos0, const double * 
 			}
 #define DOCALC(n) GETVALUE(n);GETDIST(n);UPDATEHIST(n)
 
-	for(int i=0;i<N;i++) {
-		const double xpos = *x0;
-		const double ypos = *y0;
-		const double zpos = *z0;
+	for(int i=0;i<N0;i++) {
+		const double xpos = x0[i];
+		const double ypos = y0[i];
+		const double zpos = z0[i];
 		
 		const SSE_FLOATS m_xpos = SSE_SET_FLOAT(xpos);
 		const SSE_FLOATS m_ypos = SSE_SET_FLOAT(ypos);
 		const SSE_FLOATS m_zpos = SSE_SET_FLOAT(zpos);
 
-		x0++;y0++;z0++;
-
-		double *x1 = (double *) pos1;
-		double *y1 = (double *) &pos1[N];
-		double *z1 = (double *) &pos1[2*N];
+		double *localx1 = (double *) x1;
+		double *localy1 = (double *) y1;
+		double *localz1 = (double *) z1;
 
 		int offset = 0;
 		const size_t bytes_offset = block_size*unroll_factor;
-		for(int j=0; j <=(N/block_size-unroll_factor);j+=unroll_factor) {
+		for(int j=0; j <=(N1/block_size-unroll_factor);j+=unroll_factor) {
 
 			DOCALC(0);DOCALC(1);DOCALC(2);DOCALC(3);
 			
-			x1 += bytes_offset;
-			y1 += bytes_offset;
-			z1 += bytes_offset;
+			localx1 += bytes_offset;
+			localy1 += bytes_offset;
+			localz1 += bytes_offset;
 			offset += bytes_offset;
 		}
 
-		for(int jj=0;offset<N;jj++,offset++) {
-			const double dx = xpos - *x1;
-			const double dy = ypos - *y1;
-			const double dz = zpos - *z1;
+		for(int jj=0;offset<N1;jj++,offset++) {
+			const double dx = xpos - *localx1;
+			const double dy = ypos - *localy1;
+			const double dz = zpos - *localz1;
 			const double r2 = dx*dx + dy*dy + dz*dz;
 			if(r2 >= sqr_rpmax || r2 < sqr_rpmin) continue;
 			for(int kbin=nrpbin-1;kbin>=1;kbin--){
@@ -738,7 +714,7 @@ void sse_intrinsics_chunked_unroll(const double * restrict pos0, const double * 
 					break;
 				}
 			}//searching for kbin loop
-			x1++;y1++;z1++;
+			localx1++;localy1++;localz1++;
 		}
 	}
 
@@ -767,10 +743,10 @@ int main(int argc, char **argv)
 	}
 	
   const size_t numbytes = NDIM*numpart;
-  double *x    __attribute__((aligned(ALIGNMENT))) = NULL;
-  double *y    __attribute__((aligned(ALIGNMENT))) = NULL;
-  int test0 = posix_memalign((void **) &x, ALIGNMENT, sizeof(*x)*numbytes);
-  int test1 = posix_memalign((void **) &y, ALIGNMENT, sizeof(*y)*numbytes); 
+  double *pos0    __attribute__((aligned(ALIGNMENT))) = NULL;
+  double *pos1    __attribute__((aligned(ALIGNMENT))) = NULL;
+  int test0 = posix_memalign((void **) &pos0, ALIGNMENT, sizeof(*pos0)*numbytes);
+  int test1 = posix_memalign((void **) &pos1, ALIGNMENT, sizeof(*pos1)*numbytes); 
 
   assert(test0 == 0  && test1 == 0 &&  "memory allocation failed");
 
@@ -782,8 +758,16 @@ int main(int argc, char **argv)
 																						,"sse_intrinsics_chunked","sse_intrinsics_chunked_unroll"
 #endif
 	};
-  const int ntests = sizeof(allfunction_names)/(sizeof(char)*MAXLEN);
-  void (*allfunctions[]) (const double * restrict x, const double * restrict y, const int, const int nrpbin, const double *rupp, int64_t * npairs)
+
+	const int ntests = sizeof(allfunction_names)/(sizeof(char)*MAXLEN);
+
+
+
+	//Seriously this is the declaration for the function pointers..
+	void (*allfunctions[]) ( const double * restrict x0, const double * restrict y0, const double * restrict z0,
+													 const double * restrict x1, const double * restrict y1, const double * restrict z1,
+													 const int N0, const int N1,
+													 const int nrpbin, const double *rupp, int64_t *results_npairs)
 		= {naive,chunked,compiler_vectorized_chunked
 #ifdef __AVX__			 
 			 ,avx_intrinsics_chunked,avx_intrinsics_chunked_unroll
@@ -792,6 +776,8 @@ int main(int argc, char **argv)
 			 ,sse_intrinsics_chunked,sse_intrinsics_chunked_unroll
 #endif			 
 	};
+	//end of function pointers declaration.
+	
   const double totflop = (double) numpart * (double) numpart * (8);
 
 	double function_best_mean_time[ntests],function_sigma_time[ntests],function_best_time_in_ms[ntests],function_best_mcycles[ntests];
@@ -831,16 +817,16 @@ int main(int argc, char **argv)
   srand(seed);
 
   if(clustered_data == 0) {
-	fill_array(x, numpart);
-	fill_array(y, numpart);
+		fill_array(pos0, numpart);
+		fill_array(pos1, numpart);
   } else {
-	assert(numpart <= max_galaxy_in_source_file && "Clustered data does not contain enough galaxies..please reduce NELEMENTS in defs.h or pass a smaller number on the command-line");
-	assert(NDIM == 3 && "Clustered galaxy data contains *exactly* 3 spatial dimensions");
-	read_ascii(x, numpart, source_galaxy_file);
-	read_ascii(y, numpart, source_galaxy_file);
+		assert(numpart <= max_galaxy_in_source_file && "Clustered data does not contain enough galaxies..please reduce NELEMENTS in defs.h or pass a smaller number on the command-line");
+		assert(NDIM == 3 && "Clustered galaxy data contains *exactly* 3 spatial dimensions");
+		read_ascii(pos0, numpart, source_galaxy_file);
+		read_ascii(pos1, numpart, source_galaxy_file);
   }
 		
-  int64_t *npairs_reference = calculate_reference_histogram(x, y, numpart, file_with_bins);
+  int64_t *npairs_reference = calculate_reference_histogram(pos0,pos1, numpart, file_with_bins);
 	int64_t *npairs = my_calloc(sizeof(*npairs),Nbins);
 	
 	const int64_t totniterations = repeat*ntests*(int64_t) max_niterations;
@@ -850,6 +836,14 @@ int main(int argc, char **argv)
 	fprintf(stderr,"# Running benchmarks with N = %05d particles\n",numpart);
 	init_my_progressbar(totniterations, &interrupted);
 
+	const double *x0 = pos0;
+	const double *y0 = &pos0[numpart];
+	const double *z0 = &pos0[2*numpart];
+
+	const double *x1 = pos1;
+	const double *y1 = &pos1[numpart];
+	const double *z1 = &pos1[2*numpart];
+	
 	for(int irep=0;irep<repeat;irep++) {
 		for(int i=0;i<ntests;i++) {
 			struct timeval t0,t1;
@@ -857,7 +851,7 @@ int main(int argc, char **argv)
 			
 			memset(npairs,0,sizeof(*npairs)*Nbins);
 			//warm-up
-			(allfunctions[i]) (x, y, numpart, Nbins, rupp, npairs);
+			(allfunctions[i]) (x0,y0,z0,x1,y1,z1, numpart,numpart, Nbins, rupp, npairs);
 			
 			//check-result
 			int numbad = check_result(npairs, npairs_reference, Nbins);
@@ -872,7 +866,7 @@ int main(int argc, char **argv)
 			for(int iter=0;iter<max_niterations;iter++) {
 				gettimeofday(&t0,NULL);
 				start_cycles = rdtsc();
-				(allfunctions[i]) (x, y, numpart, Nbins, rupp, npairs);
+				(allfunctions[i]) (x0,y0,z0,x1,y1,z1,numpart, numpart, Nbins, rupp, npairs);
 				end_cycles = rdtsc();
 				gettimeofday(&t1,NULL);
 				
@@ -937,7 +931,7 @@ int main(int argc, char **argv)
 
 cleanup:
   {
-		free((void *) x);free((void *) y);free(rupp);free(npairs_reference);free(npairs);
+		free((void *) pos0);free((void *) pos1);free(rupp);free(npairs_reference);free(npairs);
 		exit(EXIT_FAILURE);
   }
 
