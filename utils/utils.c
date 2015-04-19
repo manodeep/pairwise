@@ -44,11 +44,28 @@ void read_ascii(double * restrict pos, const int N, const char *source_file)
 	char execstring[MAXLEN];
 	char buffer[MAXBUFSIZE];
 	char tmpfile[MAXLEN];
+	char galaxy_file[MAXLEN];
+	my_snprintf(galaxy_file, MAXLEN, "%s",source_file);
+	FILE *fp = fopen(galaxy_file,"r");
+	if(fp == NULL) {
+	  my_snprintf(galaxy_file,MAXLEN,"../%s",source_file);
+	  fp = fopen(galaxy_file,"r");
+	  if(fp == NULL) {
+		fprintf(stderr,"ERROR:Could not find mock galaxy catalog either as `%s' or as `%s'..exiting\n",
+				source_file,galaxy_file);
+		exit(EXIT_FAILURE);
+	  }
+	} 
+	if(fp != NULL) {
+	  fclose(fp);
+	}
+
+
 	my_snprintf(tmpfile,MAXLEN,"./tmp_random_subsampled_%d.txt", N);
-	my_snprintf(execstring,MAXLEN,"shuf -n %d %s > %s",N, source_file, tmpfile);
+	my_snprintf(execstring,MAXLEN,"shuf -n %d %s > %s",N, galaxy_file, tmpfile);
 	run_system_call(execstring);
 
-	FILE *fp = my_fopen(tmpfile,"r");
+	fp = my_fopen(tmpfile,"r");
 	double *x = pos;
 	double *y = &pos[N];
 	double *z = &pos[2*N];

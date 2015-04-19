@@ -153,7 +153,7 @@ void naive(const double * restrict pos0, const double * restrict pos1, const int
   }
 
 	for(int i=0;i<nrpbin;i++) {
-		results_npairs[i] = npairs[i];
+		results_npairs[i] += npairs[i];
 	}
 	free(npairs);
 }
@@ -218,7 +218,7 @@ void chunked(const double * restrict pos0, const double * restrict pos1, const i
 
 
 	for(int i=0;i<nrpbin;i++) {
-		results_npairs[i] = npairs[i];
+		results_npairs[i] += npairs[i];
 	}
 	free(npairs);
 }
@@ -300,7 +300,7 @@ void compiler_vectorized_chunked(const double * restrict pos0, const double * re
   }
 
 	for(int i=0;i<nrpbin;i++) {
-		results_npairs[i] = npairs[i];
+		results_npairs[i] += npairs[i];
 	}
 	free(npairs);
 
@@ -404,22 +404,22 @@ void avx_intrinsics_chunked(const double * restrict pos0, const double * restric
 		}			
 
 		for(int jj=0;j<N;jj++,j++) {
-			const double dx = xpos - x1[jj];
-			const double dy = ypos - y1[jj];
-			const double dz = zpos - z1[jj];
-			const double r2 = dx*dx + dy*dy + dz*dz;
-			if(r2 >= sqr_rpmax || r2 < sqr_rpmin) continue;
-			for(int kbin=nrpbin-1;kbin>=1;kbin--){
-				if(r2 >= rupp_sqr[kbin-1]) {
-					npairs[kbin]++;
-					break;
-				}
-			}//searching for kbin loop
+		  const double dx = xpos - x1[jj];
+		  const double dy = ypos - y1[jj];
+		  const double dz = zpos - z1[jj];
+		  const double r2 = dx*dx + dy*dy + dz*dz;
+		  if(r2 >= sqr_rpmax || r2 < sqr_rpmin) continue;
+		  for(int kbin=nrpbin-1;kbin>=1;kbin--){
+			if(r2 >= rupp_sqr[kbin-1]) {
+			  npairs[kbin]++;
+			  break;
+			}
+		  }//searching for kbin loop
 		}
   }
 
 	for(int i=0;i<nrpbin;i++) {
-		results_npairs[i] = npairs[i];
+		results_npairs[i] += npairs[i];
 	}
 	free(npairs);
 }
@@ -531,7 +531,7 @@ void avx_intrinsics_chunked_unroll(const double * restrict pos0, const double * 
 #undef DOCALC
 	
 	for(int i=0;i<nrpbin;i++) {
-		results_npairs[i] = npairs[i];
+		results_npairs[i] += npairs[i];
 	}
 	free(npairs);
 }
@@ -641,7 +641,7 @@ void sse_intrinsics_chunked(const double * restrict pos0, const double * restric
   }
 
 	for(int i=0;i<nrpbin;i++) {
-		results_npairs[i] = npairs[i];
+		results_npairs[i] += npairs[i];
 	}
 	free(npairs);
 }
@@ -750,7 +750,7 @@ void sse_intrinsics_chunked_unroll(const double * restrict pos0, const double * 
 #undef DOCALC
 	
 	for(int i=0;i<nrpbin;i++) {
-		results_npairs[i] = npairs[i];
+		results_npairs[i] += npairs[i];
 	}
 	free(npairs);
 }
@@ -806,23 +806,41 @@ int main(int argc, char **argv)
   double *rupp;
   int Nbins ;
   double rpmin,rpmax;
-  setup_bins(binfile,&rpmin,&rpmax,&Nbins,&rupp);
+  char file_with_bins[MAXLEN];
+  my_snprintf(file_with_bins, MAXLEN,"%s",binfile);
+  FILE *fp = fopen(file_with_bins,"r");
+  if(fp == NULL) {
+	my_snprintf(file_with_bins, MAXLEN,"../%s",binfile);
+	fp = fopen(file_with_bins,"r");
+	if(fp == NULL) {
+	  fprintf(stderr,"ERROR: Could not find file containing radial bins either as `%s' or as `%s'..exiting\n",
+			  binfile, file_with_bins);
+		exit(EXIT_FAILURE);
+	}
+  } 
+
+  if(fp != NULL) {
+	fclose(fp);
+  }
+
+
+  setup_bins(file_with_bins,&rpmin,&rpmax,&Nbins,&rupp);
   assert(rpmin > 0.0 && rpmax > 0.0 && rpmin < rpmax && "[rpmin, rpmax] are valid inputs");
   assert(Nbins > 0 && "Number of rp bins must be > 0");
 	
   srand(seed);
 
-	if(clustered_data == 0) {
-		fill_array(x, numpart);
-		fill_array(y, numpart);
-	} else {
-		assert(numpart <= max_galaxy_in_source_file && "Clustered data does not contain enough galaxies..please reduce NELEMENTS in defs.h or pass a smaller number on the command-line");
-		assert(NDIM == 3 && "Clustered galaxy data contains *exactly* 3 spatial dimensions");
-		read_ascii(x, numpart, source_galaxy_file);
-		read_ascii(y, numpart, source_galaxy_file);
-	}
+  if(clustered_data == 0) {
+	fill_array(x, numpart);
+	fill_array(y, numpart);
+  } else {
+	assert(numpart <= max_galaxy_in_source_file && "Clustered data does not contain enough galaxies..please reduce NELEMENTS in defs.h or pass a smaller number on the command-line");
+	assert(NDIM == 3 && "Clustered galaxy data contains *exactly* 3 spatial dimensions");
+	read_ascii(x, numpart, source_galaxy_file);
+	read_ascii(y, numpart, source_galaxy_file);
+  }
 		
-  int64_t *npairs_reference = calculate_reference_histogram(x, y, numpart, binfile);
+  int64_t *npairs_reference = calculate_reference_histogram(x, y, numpart, file_with_bins);
 	int64_t *npairs = my_calloc(sizeof(*npairs),Nbins);
 	
 	const int64_t totniterations = repeat*ntests*(int64_t) max_niterations;
@@ -837,6 +855,7 @@ int main(int argc, char **argv)
 			struct timeval t0,t1;
 			double sum_x=0.0, sum_sqr_x=0.0;
 			
+			memset(npairs,0,sizeof(*npairs)*Nbins);
 			//warm-up
 			(allfunctions[i]) (x, y, numpart, Nbins, rupp, npairs);
 			

@@ -19,10 +19,10 @@
 #include 
 
 #endif
-static const int clustered_data = 1;
-static const char source_galaxy_file[] = "./data/Mr19_random_subsample_100000.txt";
+static const int clustered_data = 0;
+static const char source_galaxy_file[] = "data/Mr19_random_subsample_100000.txt";
 static const int max_galaxy_in_source_file = 100000;
-static const char binfile[] = "./data/bins";
+static const char binfile[] = "data/bins";
 static const int max_niterations = 1000;
 static const unsigned int seed = 42;
 static const int repeat=5;
