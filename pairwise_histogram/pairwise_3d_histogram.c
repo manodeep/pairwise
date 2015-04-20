@@ -108,10 +108,10 @@ int check_result(const int64_t *npairs, const int64_t *npairs_reference, const i
 }
 
 
-void naive(const double * restrict x0, const double * restrict y0, const double * restrict z0,
-					 const double * restrict x1, const double * restrict y1, const double * restrict z1,
-					 const int N0, const int N1,
-					 const int nrpbin, const double *rupp, int64_t *results_npairs)
+static inline void naive(const double * restrict x0, const double * restrict y0, const double * restrict z0,
+												 const double * restrict x1, const double * restrict y1, const double * restrict z1,
+												 const int N0, const int N1,
+												 const int nrpbin, const double *rupp, int64_t *results_npairs)
 {
   int64_t *npairs = NULL;
   size_t numbytes = sizeof(*npairs)*nrpbin;
@@ -154,10 +154,10 @@ void naive(const double * restrict x0, const double * restrict y0, const double 
 	free(npairs);
 }
 
-void chunked(const double * restrict x0, const double * restrict y0, const double * restrict z0,
-						 const double * restrict x1, const double * restrict y1, const double * restrict z1,
-						 const int N0, const int N1,
-						 const int nrpbin, const double *rupp, int64_t *results_npairs)
+static inline void chunked(const double * restrict x0, const double * restrict y0, const double * restrict z0,
+													 const double * restrict x1, const double * restrict y1, const double * restrict z1,
+													 const int N0, const int N1,
+													 const int nrpbin, const double *rupp, int64_t *results_npairs)
 {
   const int block_size = 64;
 
@@ -216,10 +216,10 @@ void chunked(const double * restrict x0, const double * restrict y0, const doubl
 }
 
 
-void compiler_vectorized_chunked(const double * restrict x0, const double * restrict y0, const double * restrict z0,
-																 const double * restrict x1, const double * restrict y1, const double * restrict z1,
-																 const int N0, const int N1,
-																 const int nrpbin, const double *rupp, int64_t *results_npairs)
+static inline void compiler_vectorized(const double * restrict x0, const double * restrict y0, const double * restrict z0,
+																			 const double * restrict x1, const double * restrict y1, const double * restrict z1,
+																			 const int N0, const int N1,
+																			 const int nrpbin, const double *rupp, int64_t *results_npairs)
 {
   const int block_size = 4;
   int64_t *npairs = NULL;
@@ -297,10 +297,10 @@ void compiler_vectorized_chunked(const double * restrict x0, const double * rest
 }
 
 #ifdef __AVX__
-void avx_intrinsics_chunked(const double * restrict x0, const double * restrict y0, const double * restrict z0,
-														const double * restrict x1, const double * restrict y1, const double * restrict z1,
-														const int N0, const int N1,
-														const int nrpbin, const double *rupp, int64_t *results_npairs)
+static inline void avx_intrinsics(const double * restrict x0, const double * restrict y0, const double * restrict z0,
+																	const double * restrict x1, const double * restrict y1, const double * restrict z1,
+																	const int N0, const int N1,
+																	const int nrpbin, const double *rupp, int64_t *results_npairs)
 {
   int64_t *npairs = NULL;
   size_t numbytes = sizeof(*npairs)*nrpbin;
@@ -318,15 +318,18 @@ void avx_intrinsics_chunked(const double * restrict x0, const double * restrict 
   const DOUBLE sqr_rpmax = rupp_sqr[nrpbin-1];
   const DOUBLE sqr_rpmin = rupp_sqr[0];
 	
+	double *localx0 = (double *) x0;
+	double *localy0 = (double *) y0;
+	double *localz0 = (double *) z0;
 	
   for(int i=0;i<N0;i++) {
-		const double xpos = x0[i];
-		const double ypos = y0[i];
-		const double zpos = z0[i];
+		/* const double xpos = x0[i]; */
+		/* const double ypos = y0[i]; */
+		/* const double zpos = z0[i]; */
 		
-		const AVX_FLOATS m_xpos = AVX_SET_FLOAT(xpos);
-		const AVX_FLOATS m_ypos = AVX_SET_FLOAT(ypos);
-		const AVX_FLOATS m_zpos = AVX_SET_FLOAT(zpos);
+		const AVX_FLOATS m_xpos = AVX_SET_FLOAT(*localx0);
+		const AVX_FLOATS m_ypos = AVX_SET_FLOAT(*localy0);
+		const AVX_FLOATS m_zpos = AVX_SET_FLOAT(*localz0);
 
 		double *localx1 = (double *) x1;
 		double *localy1 = (double *) y1;
@@ -391,9 +394,9 @@ void avx_intrinsics_chunked(const double * restrict x0, const double * restrict 
 		}			
 
 		for(int jj=0;j<N1;jj++,j++) {
-		  const double dx = xpos - localx1[jj];
-		  const double dy = ypos - localy1[jj];
-		  const double dz = zpos - localz1[jj];
+		  const double dx = *localx0 - *localx1;
+		  const double dy = *localy0 - *localy1;
+		  const double dz = *localz0 - *localz1;
 		  const double r2 = dx*dx + dy*dy + dz*dz;
 		  if(r2 >= sqr_rpmax || r2 < sqr_rpmin) continue;
 		  for(int kbin=nrpbin-1;kbin>=1;kbin--){
@@ -402,7 +405,9 @@ void avx_intrinsics_chunked(const double * restrict x0, const double * restrict 
 					break;
 				}
 		  }//searching for kbin loop
+			localx1++;localy1++;localz1++;
 		}
+		localx0++;localy0++;localz0++;
 	}
 
 	for(int i=0;i<nrpbin;i++) {
@@ -412,10 +417,10 @@ void avx_intrinsics_chunked(const double * restrict x0, const double * restrict 
 }
 
 
-void avx_intrinsics_chunked_unroll(const double * restrict x0, const double * restrict y0, const double * restrict z0,
-																	 const double * restrict x1, const double * restrict y1, const double * restrict z1,
-																	 const int N0, const int N1,
-																	 const int nrpbin, const double *rupp, int64_t *results_npairs)
+static inline void avx_intrinsics_unroll(const double * restrict x0, const double * restrict y0, const double * restrict z0,
+																				 const double * restrict x1, const double * restrict y1, const double * restrict z1,
+																				 const int N0, const int N1,
+																				 const int nrpbin, const double *rupp, int64_t *results_npairs)
 {
 	const int block_size = 4;
 	const int unroll_factor=2;
@@ -519,14 +524,43 @@ void avx_intrinsics_chunked_unroll(const double * restrict x0, const double * re
 	free(npairs);
 }
 
+static inline void avx_intrinsics_chunked(const double * restrict x0, const double * restrict y0, const double * restrict z0,
+																					const double * restrict x1, const double * restrict y1, const double * restrict z1,
+																					const int N0, const int N1,
+																					const int nrpbin, const double *rupp, int64_t *results_npairs)
+{
+	const int block_size = 1024;
+  int64_t *npairs = NULL;
+  size_t numbytes = sizeof(*npairs)*nrpbin;
+  const int test0 = posix_memalign((void **) &npairs, ALIGNMENT, numbytes);
+  assert(test0 == 0 && "memory allocation failed");
+  memset(npairs, 0, numbytes);
+	
+  for(int i=0;i<N0;i+=block_size) {
+		const int block_size1 = (N0-i) > block_size ? block_size:(N0-i);
+		for(int j=0;j<N1;j+=block_size) {
+			const int block_size2 = (N1-j) > block_size ? block_size:(N1-j);
+			avx_intrinsics_unroll(&x0[i],&y0[i],&z0[i],
+														&x1[j],&y1[j],&z1[j],
+														block_size1,block_size2,
+														nrpbin, rupp,npairs);
+		}
+	}
+	for(int i=0;i<nrpbin;i++) {
+		results_npairs[i] += npairs[i];
+	}
+	free(npairs);
+}
+
+
 #endif //AVX
 
 
 #if defined (__SSE4_2__)
-void sse_intrinsics_chunked(const double * restrict x0, const double * restrict y0, const double * restrict z0,
-														const double * restrict x1, const double * restrict y1, const double * restrict z1,
-														const int N0, const int N1,
-														const int nrpbin, const double *rupp, int64_t *results_npairs)
+void sse_intrinsics(const double * restrict x0, const double * restrict y0, const double * restrict z0,
+										const double * restrict x1, const double * restrict y1, const double * restrict z1,
+										const int N0, const int N1,
+										const int nrpbin, const double *rupp, int64_t *results_npairs)
 {
   int64_t *npairs = NULL;
   size_t numbytes = sizeof(*npairs)*nrpbin;
@@ -627,7 +661,7 @@ void sse_intrinsics_chunked(const double * restrict x0, const double * restrict 
 }
 
 
-void sse_intrinsics_chunked_unroll(const double * restrict x0, const double * restrict y0, const double * restrict z0,
+void sse_intrinsics_unroll(const double * restrict x0, const double * restrict y0, const double * restrict z0,
 																	 const double * restrict x1, const double * restrict y1, const double * restrict z1,
 																	 const int N0, const int N1,
 																	 const int nrpbin, const double *rupp, int64_t *results_npairs)
@@ -730,6 +764,35 @@ void sse_intrinsics_chunked_unroll(const double * restrict x0, const double * re
 	}
 	free(npairs);
 }
+
+static inline void sse_intrinsics_chunked(const double * restrict x0, const double * restrict y0, const double * restrict z0,
+																					const double * restrict x1, const double * restrict y1, const double * restrict z1,
+																					const int N0, const int N1,
+																					const int nrpbin, const double *rupp, int64_t *results_npairs)
+{
+	const int block_size = 1024;
+  int64_t *npairs = NULL;
+  size_t numbytes = sizeof(*npairs)*nrpbin;
+  const int test0 = posix_memalign((void **) &npairs, ALIGNMENT, numbytes);
+  assert(test0 == 0 && "memory allocation failed");
+  memset(npairs, 0, numbytes);
+	
+  for(int i=0;i<N0;i+=block_size) {
+		const int block_size1 = (N0-i) > block_size ? block_size:(N0-i);
+		for(int j=0;j<N1;j+=block_size) {
+			const int block_size2 = (N1-j) > block_size ? block_size:(N1-j);
+			sse_intrinsics(&x0[i],&y0[i],&z0[i],
+										 &x1[j],&y1[j],&z1[j],
+										 block_size1,block_size2,
+										 nrpbin, rupp,npairs);
+		}
+	}
+	for(int i=0;i<nrpbin;i++) {
+		results_npairs[i] += npairs[i];
+	}
+	free(npairs);
+}
+
 #endif //sse 4.2
 
 
@@ -750,12 +813,12 @@ int main(int argc, char **argv)
 
   assert(test0 == 0  && test1 == 0 &&  "memory allocation failed");
 
-  const char allfunction_names[][MAXLEN] = {"naive","chunked","compiler_vectorized_chunked"
+  const char allfunction_names[][MAXLEN] = {"naive","chunked","compiler_vectorized"
 #ifdef __AVX__																						
-																						,"avx_intrinsics_chunked","avx_intrinsics_chunked_unroll"
+																						,"avx_intrinsics","avx_intrinsics_unroll","avx_intrinsics_chunked"
 #endif																						
 #ifdef __SSE4_2__
-																						,"sse_intrinsics_chunked","sse_intrinsics_chunked_unroll"
+																						,"sse_intrinsics","sse_intrinsics_unroll","sse_intrinsics_chunked"
 #endif
 	};
 
@@ -768,12 +831,12 @@ int main(int argc, char **argv)
 													 const double * restrict x1, const double * restrict y1, const double * restrict z1,
 													 const int N0, const int N1,
 													 const int nrpbin, const double *rupp, int64_t *results_npairs)
-		= {naive,chunked,compiler_vectorized_chunked
+		= {naive,chunked,compiler_vectorized
 #ifdef __AVX__			 
-			 ,avx_intrinsics_chunked,avx_intrinsics_chunked_unroll
+			 ,avx_intrinsics,avx_intrinsics_unroll,avx_intrinsics_chunked
 #endif			 
 #ifdef __SSE4_2__
-			 ,sse_intrinsics_chunked,sse_intrinsics_chunked_unroll
+			 ,sse_intrinsics,sse_intrinsics_unroll,sse_intrinsics_chunked
 #endif			 
 	};
 	//end of function pointers declaration.
@@ -833,7 +896,7 @@ int main(int argc, char **argv)
 	int64_t numdone = 0;
 	int interrupted=0;
 
-	fprintf(stderr,"# Running benchmarks with N = %05d particles\n",numpart);
+	fprintf(stderr,"# Running benchmarks with N = %06d particles\n",numpart);
 	init_my_progressbar(totniterations, &interrupted);
 
 	const double *x0 = pos0;
@@ -857,6 +920,7 @@ int main(int argc, char **argv)
 			int numbad = check_result(npairs, npairs_reference, Nbins);
 			if(numbad != 0 ) {
 				fprintf(stderr,"ERROR: In function `%s' Number of incorrectly calculated histogram bins = %d out of total %d bins.\n", allfunction_names[i],numbad, Nbins);
+				interrupted=1;
 				goto cleanup;
 			}
 			
