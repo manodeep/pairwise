@@ -11,3 +11,4 @@ pairwise_3d_histogram
 *.txt
 *.pro
 *.sav
+*.eps
