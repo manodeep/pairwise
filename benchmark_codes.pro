@@ -1,10 +1,10 @@
 compile_opt idl2, strictarrsubs
 
 timings_file = 'xx.txt'
-output_file = 'timings_with_Numpart.txt'
-numpart =  [100, 200L, 500, 1000, 2000L, 5000L, 10000L, 20000L]
-exes = ['./pairwise_3d_histogram', './pairwise_3d']
-max_functions = 6
+output_file = 'timings_with_Numpart_binned.txt'
+numpart =  [100, 200L, 500, 1000, 2000L, 5000L, 10000L, 20000L, 50000L, 100000L]
+exes = ['./pairwise_3d_histogram']
+max_functions = 10
 get_lun, lun
 
 if n_elements(alltimings) eq 0 then begin
@@ -151,9 +151,6 @@ for i = 0, n_elements(exes)-1 do begin
    write_png, pngfile, xx
    
 endfor
-
-
-end
 
 
 end

@@ -68,22 +68,19 @@ long check_result(double *dist, const double *pos0, const double *pos1, const in
 }
 
 
-void naive(const double * restrict pos0, const double * restrict pos1, const int N, double * restrict d)
+void naive(const double * restrict x0, const double * restrict y0, const double * restrict z0,
+					 const double * restrict x1, const double * restrict y1, const double * restrict z1,
+					 const int N0, const int N1, 
+					 double * restrict d)
 {
-	const double *x0  __attribute__((aligned(ALIGNMENT))) = (const double *) pos0;
-	const double *y0  __attribute__((aligned(ALIGNMENT))) = (const double *) &pos0[N];
-	const double *z0  __attribute__((aligned(ALIGNMENT))) = (const double *) &pos0[2*N];
 
-	for(int i=0;i<N;i++) {
+	for(int i=0;i<N0;i++) {
 		const double xpos  __attribute__((aligned(ALIGNMENT))) = x0[i];
 		const double ypos  __attribute__((aligned(ALIGNMENT))) = y0[i];
 		const double zpos  __attribute__((aligned(ALIGNMENT))) = z0[i];
-		const double *x1  __attribute__((aligned(ALIGNMENT))) = (const double *) pos1;
-		const double *y1  __attribute__((aligned(ALIGNMENT))) = (const double *) &pos1[N];
-		const double *z1  __attribute__((aligned(ALIGNMENT))) = (const double *) &pos1[2*N];
 
-		double *dist = (double *) &d[i*N];	
-		for(int j=0;j<N;j++) {
+		double *dist = (double *) &d[i*N1];	
+		for(int j=0;j<N1;j++) {
 			const double dx = xpos - x1[j];
 			const double dy = ypos - y1[j];
 			const double dz = zpos - z1[j];
@@ -99,22 +96,18 @@ void naive(const double * restrict pos0, const double * restrict pos1, const int
 
 
 
-void chunked(const double * restrict pos0, const double * restrict pos1, const int N, double * restrict d)
+void chunked(const double * restrict x0, const double * restrict y0, const double * restrict z0,
+						 const double * restrict x1, const double * restrict y1, const double * restrict z1,
+						 const int N0, const int N1, 
+						 double * restrict d)
 {
-	const int block_size = 128;
-	const double *x0 = (const double *) pos0;
-	const double *y0 = (const double *) &pos0[N];
-	const double *z0 = (const double *) &pos0[2*N];
-	
-	for(int i=0;i<N;i+=block_size) {
-		const int block_size1 = (N-i) > block_size ? block_size:(N-i);
-		for(int j=0;j<N;j+=block_size) {
-			const int block_size2 = (N-j) > block_size ? block_size:(N-j);
-			const double *x1 = (const double *) &pos1[j];
-			const double *y1 = (const double *) &pos1[N + j];
-			const double *z1 = (const double *) &pos1[2*N + j];
+	const int block_size = 256;
+	for(int i=0;i<N0;i+=block_size) {
+		const int block_size1 = (N0-i) > block_size ? block_size:(N0-i);
+		for(int j=0;j<N1;j+=block_size) {
+			const int block_size2 = (N1-j) > block_size ? block_size:(N1-j);
 			for(int ii=0;ii<block_size1;ii++) {
-				const long index = (i+ii)*(long) N + j;
+				const long index = (i+ii)*(long) N1 + j;
 				double *dist = (double *) &d[index];
 				const double xpos = x0[i+ii];
 				const double ypos = y0[i+ii];
@@ -123,9 +116,9 @@ void chunked(const double * restrict pos0, const double * restrict pos1, const i
 #pragma simd assert
 #endif				
 				for(int jj=0;jj<block_size2;jj++) {
-					const double dx = xpos - x1[jj];
-					const double dy = ypos - y1[jj];
-					const double dz = zpos - z1[jj];
+					const double dx = xpos - x1[j+jj];
+					const double dy = ypos - y1[j+jj];
+					const double dz = zpos - z1[j+jj];
 					const double sqr_ds = dx*dx + dy*dy + dz*dz;
 #ifndef SQRT_DIST
 					dist[jj] = sqr_ds;
@@ -139,53 +132,49 @@ void chunked(const double * restrict pos0, const double * restrict pos1, const i
 }
 
 
-void compiler_vectorized_chunked(const double * restrict pos0, const double * restrict pos1, const int N, double * restrict d)
+void compiler_vectorized(const double * restrict x0, const double * restrict y0, const double * restrict z0,
+												 const double * restrict x1, const double * restrict y1, const double * restrict z1,
+												 const int N0, const int N1, 
+												 double * restrict d)
 {
-	const int block_size = 4;
-
-	const double *x0 = (const double *) pos0;
-	const double *y0 = (const double *) &pos0[N];
-	const double *z0 = (const double *) &pos0[2*N];
-
-
-	for(int i=0;i<N;i++) {
+	for(int i=0;i<N0;i++) {
 		int j;
 		const double xpos = x0[i];
 		const double ypos = y0[i];
 		const double zpos = z0[i];
 
-		double *x1 = (double *) pos1;
-		double *y1 = (double *) &pos1[N];
-		double *z1 = (double *) &pos1[2*N];
+		double *localx1 = (double *) x1;
+		double *localy1 = (double *) y1;
+		double *localz1 = (double *) z1;
 
 
-		for(j=0;j<=(N-block_size);j+=block_size){
-			double *dist = &d[i*N + j];
+		for(j=0;j<=(N1-NVEC);j+=NVEC){
+			double *dist = &d[i*N1 + j];
 #ifdef __INTEL_COMPILER			
 #pragma simd assert
 #endif
-			for(int jj=0;jj<block_size;jj++) {
-				const double dx = xpos - x1[jj];
-				const double dy = ypos - y1[jj];
-				const double dz = zpos - z1[jj];
+			for(int jj=0;jj<NVEC;jj++) {
+				const double dx = xpos - localx1[jj];
+				const double dy = ypos - localy1[jj];
+				const double dz = zpos - localz1[jj];
 				dist[jj] = dx*dx + dy*dy + dz*dz;
 			}
-			x1 += block_size;
-			y1 += block_size;
-			z1 += block_size;
+			localx1 += NVEC;
+			localy1 += NVEC;
+			localz1 += NVEC;
 			
 		}			
-		double *dist = (double *) &d[i*N + j];
-		for(int jj=0;j<N;jj++,j++) {
-			const double dx = xpos - x1[jj];
-			const double dy = ypos - y1[jj];
-			const double dz = zpos - z1[jj];
+		double *dist = (double *) &d[i*N1 + j];
+		for(int jj=0;j<N1;jj++,j++) {
+			const double dx = xpos - localx1[jj];
+			const double dy = ypos - localy1[jj];
+			const double dz = zpos - localz1[jj];
 			dist[jj] = dx*dx + dy*dy + dz*dz;
 		}
 	}
 
 #ifdef SQRT_DIST
-	long numcomputed = (long) (N) *(long) N;
+	long numcomputed = (long) N0 *(long) N1;
 	for(long index=0;index<numcomputed;index++){
 		d[index] = sqrt(d[index]);
 	}
@@ -195,14 +184,12 @@ void compiler_vectorized_chunked(const double * restrict pos0, const double * re
 
 
 #ifdef __AVX__
-void intrinsics_chunked(const double * restrict pos0, const double * restrict pos1, const int N, double * restrict d)
+void avx_intrinsics(const double * restrict x0, const double * restrict y0, const double * restrict z0,
+										const double * restrict x1, const double * restrict y1, const double * restrict z1,
+										const int N0, const int N1, 
+										double * restrict d)
 {
-	const int block_size = 4;
-	const double *x0 = (double *) pos0;
-	const double *y0 = (double *) &pos0[N];
-	const double *z0 = (double *) &pos0[2*N];
-
-	for(int i=0;i<N;i++) {
+	for(int i=0;i<N0;i++) {
 		const double xpos = x0[i];
 		const double ypos = y0[i];
 		const double zpos = z0[i];
@@ -211,24 +198,18 @@ void intrinsics_chunked(const double * restrict pos0, const double * restrict po
 		const AVX_FLOATS m_ypos = AVX_SET_FLOAT(ypos);
 		const AVX_FLOATS m_zpos = AVX_SET_FLOAT(zpos);
 
-		double *x1 = (double *) pos1;
-		double *y1 = (double *) &pos1[N];
-		double *z1 = (double *) &pos1[2*N];
+		double *localx1 = (double *) x1;
+		double *localy1 = (double *) y1;
+		double *localz1 = (double *) z1;
 
 		int j;		
-		for(j=0;j<=(N-block_size);j+=block_size){
-			/* PREFETCH(x1 + 128); */
-			/* PREFETCH(y1 + 128); */
-			/* PREFETCH(z1 + 128); */
+		for(j=0;j<=(N1-NVEC);j+=NVEC){
+			double *dist  __attribute__((aligned(ALIGNMENT))) = &d[i*N1 + j];
+			const AVX_FLOATS m_x1 = AVX_LOAD_FLOATS_UNALIGNED(localx1);
+			const AVX_FLOATS m_y1 = AVX_LOAD_FLOATS_UNALIGNED(localy1);
+			const AVX_FLOATS m_z1 = AVX_LOAD_FLOATS_UNALIGNED(localz1);
 			
-			double *dist  __attribute__((aligned(ALIGNMENT))) = &d[i*N + j];
-			const AVX_FLOATS m_x1 = AVX_LOAD_FLOATS_UNALIGNED(x1);
-			const AVX_FLOATS m_y1 = AVX_LOAD_FLOATS_UNALIGNED(y1);
-			const AVX_FLOATS m_z1 = AVX_LOAD_FLOATS_UNALIGNED(z1);
-			
-			x1 += block_size;
-			y1 += block_size;
-			z1 += block_size;
+			localx1 += NVEC;localy1 += NVEC;localz1 += NVEC;
 
 			const AVX_FLOATS m_dx = AVX_SUBTRACT_FLOATS(m_x1, m_xpos);
 			const AVX_FLOATS m_dy = AVX_SUBTRACT_FLOATS(m_y1, m_ypos);
@@ -244,11 +225,11 @@ void intrinsics_chunked(const double * restrict pos0, const double * restrict po
 #endif			
 		}			
 
-		double *dist = (double *) &d[i*N + j];
-		for(int jj=0;j<N;jj++,j++) {
-			const double dx = xpos - x1[jj];
-			const double dy = ypos - y1[jj];
-			const double dz = zpos - z1[jj];
+		double *dist = (double *) &d[i*N1 + j];
+		for(int jj=0;j<N1;jj++,j++) {
+			const double dx = xpos - localx1[jj];
+			const double dy = ypos - localy1[jj];
+			const double dz = zpos - localz1[jj];
 #ifdef SQRT_DIST
 			dist[jj] = sqrt(dx*dx + dy*dy + dz*dz);
 #else
@@ -260,57 +241,47 @@ void intrinsics_chunked(const double * restrict pos0, const double * restrict po
 
 
 
-void intrinsics_chunked_unroll(const double * restrict pos0, const double * restrict pos1, const int N, double * restrict d)
+void avx_intrinsics_unroll(const double * restrict x0, const double * restrict y0, const double * restrict z0,
+													 const double * restrict x1, const double * restrict y1, const double * restrict z1,
+													 const int N0, const int N1, 
+													 double * restrict d)
 {
-	const int block_size = 4;
 #ifdef SQRT_DIST
 	const int unroll_factor=4;//28 sqrt operations are supported -> can be up to 28
 #else
 	const int unroll_factor=2;
 #endif
-	assert(N >= NVEC*unroll_factor && "Number of elements present must be larger than the assumed size");
 	
-	double *x0 = (double *) pos0;
-	double *y0 = (double *) &pos0[N];
-	double *z0 = (double *) &pos0[2*N];
-
-#define GETXVALUE(n) AVX_FLOATS diffx##n = AVX_SUBTRACT_FLOATS(AVX_LOAD_FLOATS_UNALIGNED(&x1[n*block_size]), m_xpos)
-#define GETYVALUE(n) AVX_FLOATS diffy##n = AVX_SUBTRACT_FLOATS(AVX_LOAD_FLOATS_UNALIGNED(&y1[n*block_size]), m_ypos)
-#define GETZVALUE(n) AVX_FLOATS diffz##n = AVX_SUBTRACT_FLOATS(AVX_LOAD_FLOATS_UNALIGNED(&z1[n*block_size]), m_zpos)
+#define GETXVALUE(n) AVX_FLOATS diffx##n = AVX_SUBTRACT_FLOATS(AVX_LOAD_FLOATS_UNALIGNED(&localx1[n*NVEC]), m_xpos)
+#define GETYVALUE(n) AVX_FLOATS diffy##n = AVX_SUBTRACT_FLOATS(AVX_LOAD_FLOATS_UNALIGNED(&localy1[n*NVEC]), m_ypos)
+#define GETZVALUE(n) AVX_FLOATS diffz##n = AVX_SUBTRACT_FLOATS(AVX_LOAD_FLOATS_UNALIGNED(&localz1[n*NVEC]), m_zpos)
 #define GETVALUE(n)  GETXVALUE(n);GETYVALUE(n);GETZVALUE(n)
 
 #ifndef SQRT_DIST	
-#define GETDIST(n) AVX_STORE_FLOATS_TO_MEMORY(&dist[n*block_size],AVX_ADD_FLOATS(AVX_SQUARE_FLOAT(diffx##n),AVX_ADD_FLOATS(AVX_SQUARE_FLOAT(diffy##n), AVX_SQUARE_FLOAT(diffz##n))))
+#define GETDIST(n) AVX_STORE_FLOATS_TO_MEMORY(&dist[n*NVEC],AVX_ADD_FLOATS(AVX_SQUARE_FLOAT(diffx##n),AVX_ADD_FLOATS(AVX_SQUARE_FLOAT(diffy##n), AVX_SQUARE_FLOAT(diffz##n))))
 #else	
-#define GETDIST(n) AVX_STORE_FLOATS_TO_MEMORY(&dist[n*block_size],AVX_SQRT_FLOAT(AVX_ADD_FLOATS(AVX_SQUARE_FLOAT(diffx##n),AVX_ADD_FLOATS(AVX_SQUARE_FLOAT(diffy##n), AVX_SQUARE_FLOAT(diffz##n)))))
+#define GETDIST(n) AVX_STORE_FLOATS_TO_MEMORY(&dist[n*NVEC],AVX_SQRT_FLOAT(AVX_ADD_FLOATS(AVX_SQUARE_FLOAT(diffx##n),AVX_ADD_FLOATS(AVX_SQUARE_FLOAT(diffy##n), AVX_SQUARE_FLOAT(diffz##n)))))
 #endif
-	
-	for(int i=0;i<N;i++) {
 
-		const double xpos = *x0;
-		const double ypos = *y0;
-		const double zpos = *z0;
+	for(int i=0;i<N0;i++) {
+
+		const double xpos = x0[i];
+		const double ypos = y0[i];
+		const double zpos = z0[i];
 		
 		const AVX_FLOATS m_xpos = AVX_SET_FLOAT(xpos);
 		const AVX_FLOATS m_ypos = AVX_SET_FLOAT(ypos);
 		const AVX_FLOATS m_zpos = AVX_SET_FLOAT(zpos);
 
-		x0++;y0++;z0++;
+		double *localx1 = (double *) x1;
+		double *localy1 = (double *) y1;
+		double *localz1 = (double *) z1;
 
-		double *x1 = (double *) pos1;
-		double *y1 = (double *) &pos1[N];
-		double *z1 = (double *) &pos1[2*N];
-
-		double *dist = (double *) &d[i*N];
+		double *dist = (double *) &d[i*N1];
 		
 		int offset = 0;
-		const size_t bytes_offset = block_size*unroll_factor;
-		for(int j=0; j <=(N/block_size-unroll_factor);j+=unroll_factor) {
-			/* PREFETCH(x1 + 2*block_size*unroll_factor); */
-			/* PREFETCH(y1 + 2*block_size*unroll_factor); */
-			/* PREFETCH(z1 + 2*block_size*unroll_factor); */
-
-			
+		const size_t bytes_offset = NVEC*unroll_factor;
+		for(int j=0; j <=(N1/NVEC-unroll_factor);j+=unroll_factor) {
 #ifdef SQRT_DIST			
 			GETVALUE(0);GETVALUE(1);GETVALUE(2);GETVALUE(3);
 			GETDIST(0);GETDIST(1);GETDIST(2);GETDIST(3);
@@ -318,20 +289,18 @@ void intrinsics_chunked_unroll(const double * restrict pos0, const double * rest
 			GETVALUE(0);GETVALUE(1);
 			GETDIST(0);GETDIST(1);
 #endif			
-			x1 += bytes_offset;
-			y1 += bytes_offset;
-			z1 += bytes_offset;
+			localx1 += bytes_offset;
+			localy1 += bytes_offset;
+			localz1 += bytes_offset;
 			dist += bytes_offset;
 			offset += bytes_offset;
 		}
 
-		dist = (double *) &d[i*N + offset];
-		for(int jj=0;offset<N;jj++,offset++) {
-			const double dx = xpos - *x1;
-			const double dy = ypos - *y1;
-			const double dz = zpos - *z1;
-
-			x1++;y1++;z1++;
+		dist = (double *) &d[i*N1 + offset];
+		for(int jj=0;offset<N1;jj++,offset++) {
+			const double dx = xpos - localx1[jj];
+			const double dy = ypos - localy1[jj];
+			const double dz = zpos - localz1[jj];
 			
 #ifdef SQRT_DIST
 			dist[jj] = sqrt(dx*dx + dy*dy + dz*dz);
@@ -346,7 +315,86 @@ void intrinsics_chunked_unroll(const double * restrict pos0, const double * rest
 #undef GETZVALUE
 #undef GETDIST
 }
+
+
+static inline void avx_intrinsics_kernel(const double * restrict x0, const double * restrict y0, const double * restrict z0,
+																				 const double * restrict x1, const double * restrict y1, const double * restrict z1,
+																				 const int N0, const int N1,
+																				 const int totN1,
+																				 double * restrict d) 
+{
+	for(int i=0;i<N0;i++) {
+		const double xpos = x0[i];
+		const double ypos = y0[i];
+		const double zpos = z0[i];
+
+		const AVX_FLOATS m_xpos = AVX_SET_FLOAT(xpos);
+		const AVX_FLOATS m_ypos = AVX_SET_FLOAT(ypos);
+		const AVX_FLOATS m_zpos = AVX_SET_FLOAT(zpos);
+
+		double *localx1 = (double *) x1;
+		double *localy1 = (double *) y1;
+		double *localz1 = (double *) z1;
+
+		int j;		
+		for(j=0;j<=(N1-NVEC);j+=NVEC){
+			double *dist  __attribute__((aligned(ALIGNMENT))) = &d[i*totN1 + j];
+			const AVX_FLOATS m_x1 = AVX_LOAD_FLOATS_UNALIGNED(localx1);
+			const AVX_FLOATS m_y1 = AVX_LOAD_FLOATS_UNALIGNED(localy1);
+			const AVX_FLOATS m_z1 = AVX_LOAD_FLOATS_UNALIGNED(localz1);
+			
+			localx1 += NVEC;localy1 += NVEC;localz1 += NVEC;
+
+			const AVX_FLOATS m_dx = AVX_SUBTRACT_FLOATS(m_x1, m_xpos);
+			const AVX_FLOATS m_dy = AVX_SUBTRACT_FLOATS(m_y1, m_ypos);
+			const AVX_FLOATS m_dz = AVX_SUBTRACT_FLOATS(m_z1, m_zpos);
+			
+			const AVX_FLOATS m_r2 = AVX_ADD_FLOATS(AVX_SQUARE_FLOAT(m_dx), AVX_ADD_FLOATS(AVX_SQUARE_FLOAT(m_dy), AVX_SQUARE_FLOAT(m_dz)));
+#ifdef SQRT_DIST
+			AVX_STORE_FLOATS_TO_MEMORY(dist, AVX_SQRT_FLOAT(m_r2));
+			/* AVX_STREAMING_STORE_FLOATS(dist, AVX_SQRT_FLOAT(m_r2)); */
+#else
+			AVX_STORE_FLOATS_TO_MEMORY(dist, m_r2);
+			/* AVX_STREAMING_STORE_FLOATS(dist, m_r2); */
+#endif			
+		}			
+
+		double *dist = (double *) &d[i*totN1 + j];
+		for(int jj=0;j<N1;jj++,j++) {
+			const double dx = xpos - localx1[jj];
+			const double dy = ypos - localy1[jj];
+			const double dz = zpos - localz1[jj];
+#ifdef SQRT_DIST
+			dist[jj] = sqrt(dx*dx + dy*dy + dz*dz);
+#else
+			dist[jj] = dx*dx + dy*dy + dz*dz;
 #endif
+		}
+	}
+}
+
+void avx_intrinsics_chunked(const double * restrict x0, const double * restrict y0, const double * restrict z0,
+														const double * restrict x1, const double * restrict y1, const double * restrict z1,
+														const int N0, const int N1, 
+														double * restrict d)
+{
+	const int block_size = 256;
+	for(int i=0;i<N0;i+=block_size) {
+		const int block_size1 = (N0-i) > block_size ? block_size:(N0-i);
+		for(int j=0;j<N1;j+=block_size) {
+			const int block_size2 = (N1-j) > block_size ? block_size:(N1-j);
+			avx_intrinsics_kernel(&x0[i],&y0[i],&z0[i],
+														&x1[j],&y1[j],&z1[j],
+														block_size1,block_size2,
+														N1,
+														&d[i*N1 + j]);
+														
+		}
+	}
+}
+
+
+#endif //AVX
 
 
 int main(int argc, char **argv)
@@ -359,27 +407,34 @@ int main(int argc, char **argv)
 	}
 	
 	const size_t numbytes = NDIM*numpart;
-	double *x    __attribute__((aligned(ALIGNMENT))) = NULL;
-	double *y    __attribute__((aligned(ALIGNMENT))) = NULL;
+	double *pos0    __attribute__((aligned(ALIGNMENT))) = NULL;
+	double *pos1    __attribute__((aligned(ALIGNMENT))) = NULL;
 	double *dist __attribute__((aligned(ALIGNMENT))) = NULL;
-	int test0 = posix_memalign((void **) &x, ALIGNMENT, sizeof(*x)*numbytes);
-	int test1 = posix_memalign((void **) &y, ALIGNMENT, sizeof(*y)*numbytes); 
+	int test0 = posix_memalign((void **) &pos0, ALIGNMENT, sizeof(*pos0)*numbytes);
+	int test1 = posix_memalign((void **) &pos1, ALIGNMENT, sizeof(*pos1)*numbytes); 
 	
 	const long totnpairs = (long) numpart * (long) numpart;
 	int test2 = posix_memalign((void **) &dist, ALIGNMENT, sizeof(*dist)*totnpairs);
 	assert(test0 == 0  && test1 == 0 && test2 == 0 && "memory allocation failed");
 
-  const char allfunction_names[][MAXLEN] = {"naive","chunked","compiler_vectorized_chunked",
+  const char allfunction_names[][MAXLEN] = {"naive","chunked","compiler_vectorized",
 #ifdef __AVX__																						
-																						"intrinsics_chunked","intrinsics_chunked_unroll",
+																						"avx_intrinsics","avx_intrinsics_unroll","avx_intrinsics_chunked",
 #endif																						
 																						"pairwise_ispc"};
 	const int ntests = sizeof(allfunction_names)/(sizeof(char)*MAXLEN);
-	void (*allfunctions[]) (const double * restrict x, const double * restrict y, const int, double * restrict)      = {naive,chunked,compiler_vectorized_chunked,
+
+	//Yup. This is the array of function pointers. 
+	void (*allfunctions[]) (const double * restrict x0, const double * restrict y0, const double * restrict z0,
+													const double * restrict x1, const double * restrict y1, const double * restrict z1,
+													const int N0, const int N1, 
+													double * restrict d)  = {naive,chunked,compiler_vectorized,
 #ifdef __AVX__																																																											
-																																																											intrinsics_chunked,intrinsics_chunked_unroll,
+																									 avx_intrinsics,avx_intrinsics_unroll,avx_intrinsics_chunked,
 #endif																																																											
-																																																											pairwise_ispc};
+																									 pairwise_ispc};
+
+	//end of block for function pointer array. 
 
 	double function_best_mean_time[ntests],function_sigma_time[ntests],function_best_time_in_ms[ntests],function_best_mcycles[ntests];
 	int function_niterations[ntests];
@@ -399,13 +454,13 @@ int main(int argc, char **argv)
 	srand(seed);
 
 	if(clustered_data == 0) {
-		fill_array(x, numpart);
-		fill_array(y, numpart);
+		fill_array(pos0, numpart);
+		fill_array(pos1, numpart);
 	} else {
 		assert(numpart <= max_galaxy_in_source_file && "Clustered data does not contain enough galaxies..please reduce NELEMENTS in defs.h or pass a smaller number on the command-line");
 		assert(NDIM == 3 && "Clustered galaxy data contains *exactly* 3 spatial dimensions");
-		read_ascii(x, numpart, source_galaxy_file);
-		read_ascii(y, numpart, source_galaxy_file);
+		read_ascii(pos0, numpart, source_galaxy_file);
+		read_ascii(pos1, numpart, source_galaxy_file);
 	}
 
 	const int64_t totniterations = repeat*ntests*(int64_t) max_niterations;
@@ -415,18 +470,28 @@ int main(int argc, char **argv)
 	fprintf(stderr,"# Running benchmarks with N = %05d particles\n",numpart);
 	init_my_progressbar(totniterations, &interrupted);
 
+	const double *x0 = pos0;
+	const double *y0 = &pos0[numpart];
+	const double *z0 = &pos0[2*numpart];
+
+	const double *x1 = pos1;
+	const double *y1 = &pos1[numpart];
+	const double *z1 = &pos1[2*numpart];
+	
+	
 	for(int irep=0;irep<repeat;irep++) {
 		for(int i=0;i<ntests;i++) {
 			struct timeval t0,t1;
 			double sum_x=0.0, sum_sqr_x=0.0;
 			
 			//warm-up
-			(allfunctions[i]) (x, y, numpart, dist);
+			(allfunctions[i]) (x0,y0,z0,x1,y1,z1,numpart,numpart,dist);
 			
 			//check-result
-			long numbad = check_result(dist, x, y, numpart);
+			long numbad = check_result(dist, pos0, pos1, numpart);
 			if(numbad != 0) {
 				fprintf(stderr,"ERROR: In function `%s' Number of incorrectly calculated distances = %ld out of a total of (%ld) possible pairs.\n", allfunction_names[i],numbad, totnpairs);
+				interrupted=1;
 				goto cleanup;
 			}
 			
@@ -436,7 +501,7 @@ int main(int argc, char **argv)
 			for(int iter=0;iter<max_niterations;iter++) {
 				gettimeofday(&t0,NULL);
 				start_cycles = rdtsc();
-				(allfunctions[i]) (x, y, numpart, dist);
+				(allfunctions[i]) (x0,y0,z0,x1,y1,z1,numpart,numpart,dist);
 				end_cycles = rdtsc();
 				gettimeofday(&t1,NULL);
 				
@@ -500,7 +565,7 @@ int main(int argc, char **argv)
 	
 cleanup:
 	{
-		free((void *) x);free((void *) y);free((void *) dist);
+		free((void *) pos0);free((void *) pos1);free((void *) dist);
 		exit(EXIT_FAILURE);
 	}
 

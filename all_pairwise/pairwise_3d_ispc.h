@@ -21,7 +21,7 @@ namespace ispc { /* namespace */
 #if defined(__cplusplus) && !defined(__ISPC_NO_EXTERN_C)
 extern "C" {
 #endif // __cplusplus
-    extern void pairwise_ispc(const double * pos0, const double * pos1, const int32_t N, double * d);
+    extern void pairwise_ispc(const double * x0, const double * y0, const double * z0, const double * x1, const double * y1, const double * z1, const int32_t N0, const int32_t N1, double * d);
 #if defined(__cplusplus) && !defined(__ISPC_NO_EXTERN_C)
 } /* end extern C */
 #endif // __cplusplus
