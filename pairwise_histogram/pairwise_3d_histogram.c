@@ -394,9 +394,9 @@ static inline void avx_intrinsics(const double * restrict x0, const double * res
 		}			
 
 		for(int jj=0;j<N1;jj++,j++) {
-		  const double dx = *localx0 - *localx1;
-		  const double dy = *localy0 - *localy1;
-		  const double dz = *localz0 - *localz1;
+		  const double dx = *localx0 - localx1[jj];
+		  const double dy = *localy0 - localy1[jj];
+		  const double dz = *localz0 - localz1[jj];
 		  const double r2 = dx*dx + dy*dy + dz*dz;
 		  if(r2 >= sqr_rpmax || r2 < sqr_rpmin) continue;
 		  for(int kbin=nrpbin-1;kbin>=1;kbin--){
@@ -405,7 +405,6 @@ static inline void avx_intrinsics(const double * restrict x0, const double * res
 					break;
 				}
 		  }//searching for kbin loop
-			localx1++;localy1++;localz1++;
 		}
 		localx0++;localy0++;localz0++;
 	}
@@ -496,9 +495,9 @@ static inline void avx_intrinsics_unroll(const double * restrict x0, const doubl
 		}
 
 		for(int jj=0;offset<N1;jj++,offset++) {
-			const double dx = xpos - *localx1;
-			const double dy = ypos - *localy1;
-			const double dz = zpos - *localz1;
+			const double dx = xpos - localx1[jj];
+			const double dy = ypos - localy1[jj];
+			const double dz = zpos - localz1[jj];
 			const double r2 = dx*dx + dy*dy + dz*dz;
 			if(r2 >= sqr_rpmax || r2 < sqr_rpmin) continue;
 			for(int kbin=nrpbin-1;kbin>=1;kbin--){
@@ -507,7 +506,6 @@ static inline void avx_intrinsics_unroll(const double * restrict x0, const doubl
 					break;
 				}
 			}//searching for kbin loop
-			localx1++;localy1++;localz1++;
 		}
 	}
 
@@ -737,9 +735,9 @@ void sse_intrinsics_unroll(const double * restrict x0, const double * restrict y
 		}
 
 		for(int jj=0;offset<N1;jj++,offset++) {
-			const double dx = xpos - *localx1;
-			const double dy = ypos - *localy1;
-			const double dz = zpos - *localz1;
+			const double dx = xpos - localx1[jj];
+			const double dy = ypos - localy1[jj];
+			const double dz = zpos - localz1[jj];
 			const double r2 = dx*dx + dy*dy + dz*dz;
 			if(r2 >= sqr_rpmax || r2 < sqr_rpmin) continue;
 			for(int kbin=nrpbin-1;kbin>=1;kbin--){
@@ -748,7 +746,6 @@ void sse_intrinsics_unroll(const double * restrict x0, const double * restrict y
 					break;
 				}
 			}//searching for kbin loop
-			localx1++;localy1++;localz1++;
 		}
 	}
 
