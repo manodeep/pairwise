@@ -1,3 +1,7 @@
+[![MIT licensed](https://img.shields.io/badge/license-MIT-blue.svg)](https://raw.githubusercontent.com/manodeep/pairwise/master/LICENSE)
+[![DOI](https://zenodo.org/badge/19184/manodeep/pairwise.svg)](https://zenodo.org/badge/latestdoi/19184/manodeep/pairwise)
+
+
 # Description
 
 This repo contains a set of codes to benchmark various methods that
@@ -88,6 +92,10 @@ intrinsics_chunked_unroll2       |  0.55 +-  0.01   |   0.67 +-  0.02  |   0.63 
 
 Pairwise is written/maintained by Manodeep Sinha. Please contact the [author](mailto:manodeep@gmail.com) in
 case of any issues.
+
+# Citing the code
+
+If you use the code, please cite using the Zenodo DOI
 
 # LICENSE
 
