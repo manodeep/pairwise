@@ -1,0 +1,280 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="chrome=1">
+    <title>Pairwise by manodeep</title>
+
+    <link rel="stylesheet" href="stylesheets/styles.css">
+    <link rel="stylesheet" href="stylesheets/github-light.css">
+    <meta name="viewport" content="width=device-width">
+    <!--[if lt IE 9]>
+    <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+  </head>
+  <body>
+    <div class="wrapper">
+      <header>
+        <h1>Pairwise</h1>
+        <p></p>
+
+        <p class="view"><a href="https://github.com/manodeep/pairwise">View the Project on GitHub <small>manodeep/pairwise</small></a></p>
+
+
+        <ul>
+          <li><a href="https://github.com/manodeep/pairwise/zipball/master">Download <strong>ZIP File</strong></a></li>
+          <li><a href="https://github.com/manodeep/pairwise/tarball/master">Download <strong>TAR Ball</strong></a></li>
+          <li><a href="https://github.com/manodeep/pairwise">View On <strong>GitHub</strong></a></li>
+        </ul>
+      </header>
+      <section>
+        <p><a href="https://raw.githubusercontent.com/manodeep/pairwise/master/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT licensed"></a>
+<a href="https://zenodo.org/badge/latestdoi/19184/manodeep/pairwise"><img src="https://zenodo.org/badge/19184/manodeep/pairwise.svg" alt="DOI"></a></p>
+
+<h1>
+<a id="description" class="anchor" href="#description" aria-hidden="true"><span class="octicon octicon-link"></span></a>Description</h1>
+
+<p>This repo contains a set of codes to benchmark various methods that
+generate all pairwise separations. The work was inspired
+(read, challenge accepted) by the blog post by Jake VanderPlas
+<a href="https://jakevdp.github.io/blog/2013/06/15/numba-vs-cython-take-2/">here</a>.</p>
+
+<h1>
+<a id="installation" class="anchor" href="#installation" aria-hidden="true"><span class="octicon octicon-link"></span></a>Installation</h1>
+
+<p>Currently requires <a href="http://ispc.github.io">ispc</a>. If ispc is in your PATH, then installation be as simple as make. See <a href="https://raw.githubusercontent.com/manodeep/pairwise/INSTALL">INSTALL</a> for further details.</p>
+
+<h2>
+<a id="allpairwise" class="anchor" href="#allpairwise" aria-hidden="true"><span class="octicon octicon-link"></span></a>AllPairwise</h2>
+
+<p>The main code is <code>pairwise_3d.c</code> -- this contains a set of functions
+that compute all pair-wise separations for two sets of <code>N</code> random
+floating point numbers. </p>
+
+<p><code>pairwise_3d.ispc</code> contains the <a href="http://ispc.github.io/">ispc</a> code to compute
+all pairwise separations. Spoiler alert: ispc seems to produce the fastest
+function for a variety of N. </p>
+
+<p><code>pairwise_3d.f90</code> contains the fortran routine to compute the same
+pairwise separations in fortran. Taken straight from the comments in the
+blog link above and edited to show reasonable run times. </p>
+
+<p><code>pairwise.c</code> contains similar functions as <code>pairwise_3d.c</code> except that the
+array storage is now <code>xyzxyz...</code> rather than <code>xxx...yyy...zzz..</code> . This
+<code>pairwise</code> also contains the oft-touted BLAS way of computing pairwise
+separations. Notably, <code>pairwise</code> is about 2-3 times slower than <code>pairwise_3d</code>,
+agreeing with what we expect from array of structure vs structure of arrays 
+arguments (AOS vs SOA). </p>
+
+<h3>
+<a id="performance-table" class="anchor" href="#performance-table" aria-hidden="true"><span class="octicon octicon-link"></span></a>Performance Table</h3>
+
+<p>Performing 1000 iterations over 2 sets with 1000 elements each. So, a total computation
+of 1 million squared-distances, averaged over (at most) 1000 iterations. Each test is
+repeated 5 times and the best average time is noted here. </p>
+
+<table>
+<thead>
+<tr>
+<th>Function</th>
+<th>gcc timings (ms)</th>
+<th>icc timings (ms)</th>
+<th>clang timings (ms)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>naive</td>
+<td>0.56 +-  0.01</td>
+<td>0.53 +-  0.00</td>
+<td>0.53 +-  0.01</td>
+</tr>
+<tr>
+<td>chunked</td>
+<td>0.57 +-  0.00</td>
+<td>0.57 +-  0.01</td>
+<td>0.55 +-  0.01</td>
+</tr>
+<tr>
+<td>compiler_vectorized_chunked</td>
+<td>1.45 +-  0.01</td>
+<td>0.60 +-  0.01</td>
+<td>1.54 +-  0.00</td>
+</tr>
+<tr>
+<td>intrinsics_chunked</td>
+<td>0.50 +-  0.01</td>
+<td>0.63 +-  0.01</td>
+<td>0.52 +-  0.01</td>
+</tr>
+<tr>
+<td>intrinsics_chunked_unroll2</td>
+<td>0.49 +-  0.00</td>
+<td>0.59 +-  0.01</td>
+<td>0.53 +-  0.00</td>
+</tr>
+<tr>
+<td>pairwise_ispc</td>
+<td>0.62 +-  0.01</td>
+<td>0.63 +-  0.01</td>
+<td>0.63 +-  0.01</td>
+</tr>
+</tbody>
+</table>
+
+<p>Now, the same table just that the distances are square-rooted. Since, square-root is a
+very expensive operation, the timings are about a factor of 5 larger on average. </p>
+
+<table>
+<thead>
+<tr>
+<th>Function</th>
+<th>gcc timings (ms)</th>
+<th>icc timings (ms)</th>
+<th>clang timings (ms)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>naive</td>
+<td>3.19 +-  0.02</td>
+<td>3.19 +-  0.03</td>
+<td>3.19 +-  0.00</td>
+</tr>
+<tr>
+<td>chunked</td>
+<td>3.19 +-  0.02</td>
+<td>3.19 +-  0.01</td>
+<td>3.19 +-  0.02</td>
+</tr>
+<tr>
+<td>compiler_vectorized_chunked</td>
+<td>3.74 +-  0.02</td>
+<td>3.81 +-  0.01</td>
+<td>4.75 +-  0.00</td>
+</tr>
+<tr>
+<td>intrinsics_chunked</td>
+<td>3.19 +-  0.03</td>
+<td>3.19 +-  0.03</td>
+<td>3.19 +-  0.02</td>
+</tr>
+<tr>
+<td>intrinsics_chunked_unroll4</td>
+<td>3.27 +-  0.02</td>
+<td>3.21 +-  0.03</td>
+<td>3.19 +-  0.02</td>
+</tr>
+<tr>
+<td>pairwise_ispc</td>
+<td>3.19 +-  0.02</td>
+<td>3.19 +-  0.02</td>
+<td>3.19 +-  0.00</td>
+</tr>
+</tbody>
+</table>
+
+<p>Expectedly, C is much faster than any numba/cython/f2py combination can
+get you. For comparison, the fastest timings with numba/cython/f2py was around 9 ms. 
+See <a href="https://jakevdp.github.io/blog/2013/06/15/numba-vs-cython-take-2/">here</a> for
+a detailed blog post. </p>
+
+<p>Note, that you have CPU frequency scaling on <em>and</em> do not run the tests for long enough,
+then you might be fooled into thinking that the tests take longer to run (simply because
+the cpu is running at a lower frequency). I found out by <code>diff</code>ing between 
+linux <code>perf</code> output for slow and fast runs.  </p>
+
+<h2>
+<a id="pairwise-histogram" class="anchor" href="#pairwise-histogram" aria-hidden="true"><span class="octicon octicon-link"></span></a>Pairwise Histogram</h2>
+
+<p>In progress. Ultimately, the repo will contain a similar idea, just for the
+histograms of all pairwise distances. The fastest codes will probably get
+migrated into my correlation function routines <a href="https://bitbucket.org/manodeep/corrfunc/">here</a>.</p>
+
+<table>
+<thead>
+<tr>
+<th>Function</th>
+<th>gcc timings (ms)</th>
+<th>icc timings (ms)</th>
+<th>clang timings (ms)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>naive</td>
+<td>2.12 +-  0.02</td>
+<td>2.23 +-  0.03</td>
+<td>1.97 +-  0.00</td>
+</tr>
+<tr>
+<td>chunked</td>
+<td>1.42 +-  0.01</td>
+<td>1.50 +-  0.01</td>
+<td>1.44 +-  0.01</td>
+</tr>
+<tr>
+<td>compiler_vectorized_chunked</td>
+<td>2.19 +-  0.02</td>
+<td>2.21 +-  0.01</td>
+<td>1.90 +-  0.01</td>
+</tr>
+<tr>
+<td>intrinsics_chunked</td>
+<td>0.60 +-  0.00</td>
+<td>0.68 +-  0.01</td>
+<td>0.71 +-  0.00</td>
+</tr>
+<tr>
+<td>intrinsics_chunked_unroll2</td>
+<td>0.55 +-  0.01</td>
+<td>0.67 +-  0.02</td>
+<td>0.63 +-  0.01</td>
+</tr>
+</tbody>
+</table>
+
+<h1>
+<a id="author" class="anchor" href="#author" aria-hidden="true"><span class="octicon octicon-link"></span></a>Author</h1>
+
+<p>Pairwise is written/maintained by Manodeep Sinha. Please contact the <a href="mailto:manodeep@gmail.com">author</a> in
+case of any issues.</p>
+
+<h1>
+<a id="citing-the-code" class="anchor" href="#citing-the-code" aria-hidden="true"><span class="octicon octicon-link"></span></a>Citing the code</h1>
+
+<p>If you use the code, please cite using the Zenodo DOI</p>
+
+<h1>
+<a id="license" class="anchor" href="#license" aria-hidden="true"><span class="octicon octicon-link"></span></a>LICENSE</h1>
+
+<p>Pairwise is released under the MIT license. Basically, do what you want
+with the code including using it in commercial application.</p>
+
+<h1>
+<a id="project-url" class="anchor" href="#project-url" aria-hidden="true"><span class="octicon octicon-link"></span></a>Project URL</h1>
+
+<ul>
+<li>website (<a href="https://manodeep.github.io/pairwise">https://manodeep.github.io/pairwise</a>) </li>
+<li>version control (<a href="https://github.com/manodeep/pairwise">https://github.com/manodeep/pairwise</a>)</li>
+</ul>
+      </section>
+      <footer>
+        <p>This project is maintained by <a href="https://github.com/manodeep">manodeep</a></p>
+        <p><small>Hosted on GitHub Pages &mdash; Theme by <a href="https://github.com/orderedlist">orderedlist</a></small></p>
+      </footer>
+    </div>
+    <script src="javascripts/scale.fix.js"></script>
+              <script type="text/javascript">
+            var gaJsHost = (("https:" == document.location.protocol) ? "https://ssl." : "http://www.");
+            document.write(unescape("%3Cscript src='" + gaJsHost + "google-analytics.com/ga.js' type='text/javascript'%3E%3C/script%3E"));
+          </script>
+          <script type="text/javascript">
+            try {
+              var pageTracker = _gat._getTracker("UA-53726906-3");
+            pageTracker._trackPageview();
+            } catch(err) {}
+          </script>
+
+  </body>
+</html>
