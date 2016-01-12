@@ -95,7 +95,18 @@ case of any issues.
 
 # Citing the code
 
-If you use the code, please cite using the Zenodo DOI
+If you use the code, please cite using the Zenodo DOI. The BibTeX entry is:
+
+```
+@misc{manodeep_sinha_2015_33657,
+  author       = {Manodeep Sinha},
+  title        = {pairwise: v1.0},
+  month        = nov,
+  year         = 2015,
+  doi          = {10.5281/zenodo.33657},
+  url          = {http://dx.doi.org/10.5281/zenodo.33657}
+}
+```
 
 # LICENSE
 
