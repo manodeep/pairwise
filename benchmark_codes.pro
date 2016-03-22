@@ -111,7 +111,7 @@ ytitle = '% of Peak FLOPS'
 ;; titles = ['Binned Pairwise', 'Pairwise']
 
 max_cpu_frequency = 3.2d9 ;;; when cpu hits turbo mode -> max cpu frequency (even though the base is 2.6 GHz)
-max_performance = max_cpu_frequency*8 ;; sandy-bridge theoretical max is 8 doubles /cycle
+max_performance = max_cpu_frequency*4 ;; sandy-bridge theoretical max is 4 doubles /cycle (or 8 floats/cycle)
 flop_per_pair = [12.0d, 8]
 ytickinterval = 25
 for i = 0, n_elements(exes)-1 do begin
