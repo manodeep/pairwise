@@ -62,8 +62,13 @@ void read_ascii(double * restrict pos, const int N, const char *source_file)
 
 
 	my_snprintf(tmpfile,MAXLEN,"./tmp_random_subsampled_%d.txt", N);
-	my_snprintf(execstring,MAXLEN,"shuf -n %d %s > %s",N, galaxy_file, tmpfile);
-	run_system_call(execstring);
+	my_snprintf(execstring,MAXLEN,"shuf -n %d %s > %s 2>/dev/null",N, galaxy_file, tmpfile);
+  int ret = system(execstring);
+	if(ret != EXIT_SUCCESS){
+    my_snprintf(execstring,MAXLEN,"gshuf -n %d %s > %s",N, galaxy_file, tmpfile);
+    fprintf(stderr,"Did not find `shuf'. Trying with `gshuf'. If this fails, try 'sudo port install coreutils'\n");
+    run_system_call(execstring);
+  }
 
 	fp = my_fopen(tmpfile,"r");
 	double *x = pos;

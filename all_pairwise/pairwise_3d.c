@@ -16,7 +16,9 @@
 #include "utils.h"
 #include "progressbar.h"
 
+#ifdef ISPC_AVAIL
 #include "pairwise_3d_ispc.h"
+#endif
 
 #if (NDIM != 3)
 	#error NDIM must be set to 3
@@ -417,22 +419,28 @@ int main(int argc, char **argv)
 	int test2 = posix_memalign((void **) &dist, ALIGNMENT, sizeof(*dist)*totnpairs);
 	assert(test0 == 0  && test1 == 0 && test2 == 0 && "memory allocation failed");
 
-  const char allfunction_names[][MAXLEN] = {"naive","chunked","compiler_vectorized",
+  const char allfunction_names[][MAXLEN] = {"naive","chunked","compiler_vectorized"
 #ifdef __AVX__																						
-																						"avx_intrinsics","avx_intrinsics_unroll","avx_intrinsics_chunked",
+																						,"avx_intrinsics","avx_intrinsics_unroll","avx_intrinsics_chunked"
 #endif																						
-																						"pairwise_ispc"};
+#ifdef ISPC_AVAIL
+																						,"pairwise_ispc"
+#endif
+  };
 	const int ntests = sizeof(allfunction_names)/(sizeof(char)*MAXLEN);
 
 	//Yup. This is the array of function pointers. 
 	void (*allfunctions[]) (const double * restrict x0, const double * restrict y0, const double * restrict z0,
 													const double * restrict x1, const double * restrict y1, const double * restrict z1,
 													const int N0, const int N1, 
-													double * restrict d)  = {naive,chunked,compiler_vectorized,
+													double * restrict d)  = {naive,chunked,compiler_vectorized
 #ifdef __AVX__																																																											
-																									 avx_intrinsics,avx_intrinsics_unroll,avx_intrinsics_chunked,
+																									 ,avx_intrinsics,avx_intrinsics_unroll,avx_intrinsics_chunked
 #endif																																																											
-																									 pairwise_ispc};
+#ifdef ISPC_AVAIL
+																									 ,pairwise_ispc
+#endif                                                   
+  };
 
 	//end of block for function pointer array. 
 

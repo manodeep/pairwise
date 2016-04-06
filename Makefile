@@ -1,19 +1,21 @@
 include common.mk
 
-target=pairwise_3d pairwise pairwise_3d_histogram
+target:=pairwise_3d pairwise pairwise_3d_histogram
 
-PAIRWISE_3D_SRC=all_pairwise/pairwise_3d.c 
-PAIRWISE_3D_OBJS= $(PAIRWISE_3D_SRC:.c=.o)
+PAIRWISE_3D_SRC:=all_pairwise/pairwise_3d.c 
+PAIRWISE_3D_OBJS:= $(PAIRWISE_3D_SRC:.c=.o)
 
-PAIRWISE_3D_ISPC_SRC=all_pairwise/pairwise_3d.ispc
-PAIRWISE_3D_ISPC_OBJ=$(PAIRWISE_3D_ISPC_SRC:.ispc=_ispc.o)
-PAIRWISE_3D_ISPC_HDR=$(PAIRWISE_3D_ISPC_SRC:.ispc=_ispc.h)
+ifeq ($(ISPC_AVAIL), 1)
+  PAIRWISE_3D_ISPC_SRC:=all_pairwise/pairwise_3d.ispc
+  PAIRWISE_3D_ISPC_OBJ:=$(PAIRWISE_3D_ISPC_SRC:.ispc=_ispc.o)
+  PAIRWISE_3D_ISPC_HDR:=$(PAIRWISE_3D_ISPC_SRC:.ispc=_ispc.h)
+endif
 
-PAIRWISE_3D_HISTOGRAM_SRC=pairwise_histogram/pairwise_3d_histogram.c
-PAIRWISE_3D_HISTOGRAM_OBJ=$(PAIRWISE_3D_HISTOGRAM_SRC:.c=.o)
+PAIRWISE_3D_HISTOGRAM_SRC:=pairwise_histogram/pairwise_3d_histogram.c
+PAIRWISE_3D_HISTOGRAM_OBJ:=$(PAIRWISE_3D_HISTOGRAM_SRC:.c=.o)
 
-PAIRWISE_SRC = all_pairwise/pairwise.c 
-PAIRWISE_OBJ = $(PAIRWISE_SRC:.c=.o)
+PAIRWISE_SRC := all_pairwise/pairwise.c 
+PAIRWISE_OBJ := $(PAIRWISE_SRC:.c=.o)
 
 all: $(target) $(PAIRWISE_3D_SRC) $(PAIRWISE_3D_ISPC_SRC) common.mk Makefile include/defs.h 
 
@@ -47,7 +49,7 @@ progressbar.o: utils/progressbar.c utils/progressbar.h
 .PHONY: clean clena celan install lib tests distclean
 
 clean:
-	$(RM) $(target) $(PAIRWISE_3D_OBJS) $(PAIRWISE_3D_ISPC_OBJ) $(PAIRWISE_3D_ISPC_HDR) utils.o progressbar.o 
+	$(RM) $(target) $(PAIRWISE_3D_OBJS) $(PAIRWISE_3D_ISPC_OBJ) $(PAIRWISE_3D_ISPC_HDR) $(PAIRWISE_3D_HISTOGRAM_OBJ) pairwise_3d_histogram utils.o progressbar.o 
 
 clena: clean
 

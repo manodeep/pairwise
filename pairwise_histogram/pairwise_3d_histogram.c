@@ -93,7 +93,8 @@ int check_result(const int64_t *npairs, const int64_t *npairs_reference, const i
 {
   int bad=0;
   int numbadprinted=0;
-	
+  int num_zero = 0;
+  
   for(int i=1;i<Nbins;i++) {
 		if(npairs[i] != npairs_reference[i]) {
 			if(numbadprinted < 20) {
@@ -101,9 +102,14 @@ int check_result(const int64_t *npairs, const int64_t *npairs_reference, const i
 				numbadprinted++;
 			}
 			bad++;
-		} 
+		}
+
+    if(npairs[i] == 0)
+      num_zero++;
   }
-	
+	if(num_zero > 0) {
+    fprintf(stderr,"Strange: found %d zeros in the pair counts\n", num_zero);
+  }
   return bad;
 }
 
@@ -920,7 +926,15 @@ int main(int argc, char **argv)
 				interrupted=1;
 				goto cleanup;
 			}
-			
+
+      fflush(stdout);
+      fprintf(stdout,"%s\n",allfunction_names[i]);
+      for(int j=1;j<Nbins;j++) {
+        fprintf(stdout,"%12.6lf   %12.6lf  %12"PRId64"\n", rupp[j-1], rupp[j], npairs[j]);
+      }
+      fprintf(stdout,"--------------------------------------------\n");
+      fflush(stdout);
+      
 			double best_time_in_ms=1e16, best_time_in_megacycles=1e16;
 			uint64_t start_cycles, end_cycles;
 			const int64_t numdone_before_iter_loop = numdone;
